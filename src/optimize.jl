@@ -22,7 +22,8 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Int, criterion::AbstractInfo
     end
 
     w_init = zeros(Float64, n_vars*n_exp)
-
+    idxs = rand(1:n_vars*n_exp, M)
+    w_init[idxs] .= one(Float64)
     model = Nonconvex.Model(loss)
     addvar!(model, zeros(Float64, n_vars*n_exp), ones(Float64, n_vars*n_exp), integer = integer ? ones(Bool, n_vars*n_exp) : zeros(Bool, n_vars*n_exp))
     add_ineq_constraint!(model, m_constraints)
