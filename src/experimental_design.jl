@@ -61,7 +61,7 @@ function build_oed_system(sys::ODESystem; observed = nothing, tspan = ModelingTo
     @variables (z(t))[1:length(observed)]=zeros(length(observed)) [description="Measurement State"]
     @parameters w[1:length(observed)]=ones(length(observed)) [description="Measurement function", tunable=true]
     @variables (F(t))[1:size(hx, 1), 1:size(hx, 2)]=zeros(Float64, size(hx)) [description="Fischer Information Matrix"]
-    @variables (G(t))[1:size(fp, 1), 1:size(fp,2)]=zeros(Float64, size(fp)) [description="Sensitivity State"]
+    @variables (G(t))[1:size(fp, 1), 1:size(fp, 2)]=zeros(Float64, size(fp)) [description="Sensitivity State"]
 
     # Build the new system of deqs
     w = collect(w)

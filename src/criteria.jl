@@ -31,3 +31,11 @@ function (c::FischerECriterion)(ed::ExperimentalDesign, w::AbstractArray; kwargs
 end
 
 struct ACriterion <: AbstractInformationCriterion end
+# TODO: IMPLEMENT SERIOUS A criterion
+function (c::ACriterion)(ed::ExperimentalDesign, w::AbstractArray; kwargs...)
+    F = ed.variables.F
+    sol = last(ed(w; kwargs...))
+    F_ = last(sol[F])
+    (F_[1,1] + F_[2,2]) / (F_[1,1]*F_[2,2]-F_[1,2]*F_[2,1])
+    #tr(inv(F_))
+end

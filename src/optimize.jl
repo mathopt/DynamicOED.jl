@@ -6,12 +6,12 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Int, criterion::AbstractInfo
     n_vars = sum(ed.w_indicator)
 
     loss(w) = criterion(ed, reshape(w, n_vars, n_exp); kwargs...)
-    
+
     m_constraints(w) = begin
         sol = last(ed(reshape(w, n_vars, n_exp); kwargs...))
-        sum(sol[:,end-n_vars+1:end]) .- M
+        sol[end-n_vars+1:end,end] .- M
     end
-    
+
     # Define a nonconvex model
     w_init = begin
         w = rand(Float64, n_vars, n_exp)
