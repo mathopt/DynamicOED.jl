@@ -1,12 +1,12 @@
 """
 $(TYPEDEF)
 
-A setup for an experimental design. 
+A setup for an experimental design.
 
 # Fields
 $(FIELDS)
 """
-struct ExperimentalDesign{S, P, T, PS} <: AbstractExperimentalDesign
+struct ExperimentalDesign{S, P, T, PS, O} <: AbstractExperimentalDesign
     "The ODESystem"
     sys::S
     "The corresponding ODEProblem"
@@ -19,18 +19,22 @@ struct ExperimentalDesign{S, P, T, PS} <: AbstractExperimentalDesign
     ps::PS
     "The named tuple of (extended) variables"
     variables::NamedTuple
+    "The original system for a-posteriori calculation of information gain"
+    sys_original::S
+    "Observed variables"
+    observed::O
 end
 
 function ExperimentalDesign(sys::ODESystem, time_grid = [ModelingToolkit.get_tspan(sys)]; kwargs...)
-    oed_sys, F, G, z = build_oed_system(sys; tspan = first(time_grid), kwargs...)
+    oed_sys, F, G, z, observed = build_oed_system(sys; tspan = first(time_grid), kwargs...)
     oed_prob = ODEProblem(oed_sys)
     ps_old = parameters(sys)
     ps_new = parameters(oed_sys)
     w_idx = length(ps_old)+1:length(ps_new)
     w = BitVector(Tuple(i ∈ w_idx ? true : false for i in 1:length(ps_new)))
     p0 = Symbolics.getdefaultval.(ps_new)
-    return ExperimentalDesign{typeof(oed_sys), typeof(oed_prob), typeof(time_grid), typeof(p0)}(oed_sys, oed_prob, w, time_grid, p0, 
-        (; F = F, G = G, z = z)
+    return ExperimentalDesign{typeof(oed_sys), typeof(oed_prob), typeof(time_grid), typeof(p0), typeof(observed)}(oed_sys, oed_prob, w, time_grid, p0,
+        (; F = F, G = G, z = z), sys, observed
     )
 end
 
@@ -64,7 +68,7 @@ function build_oed_system(sys::ODESystem; observed = nothing, tspan = ModelingTo
     G = collect(G)
     hx = collect(hx)
     df = sum(enumerate(w)) do (i, wi)
-        w[i]*((hx[i:i, :]*G)'*(hx[i:i,:]*G))
+        wi*((hx[i:i, :]*G)'*(hx[i:i,:]*G))
     end
 
     @named oed_system = ODESystem([
@@ -74,7 +78,7 @@ function build_oed_system(sys::ODESystem; observed = nothing, tspan = ModelingTo
             D.(z) .~ w
         ], tspan = tspan
     )
-    return structural_simplify(oed_system), F, G, z
+    return structural_simplify(oed_system), F, G, z, observed
 end
 
 # General predict
@@ -87,10 +91,49 @@ end
 # Predict using the measurement array
 function (oed::ExperimentalDesign)(w::AbstractArray; alg = Tsit5(), kwargs...)
     sol_ = nothing
-    map(1:size(w, 2)) do i 
+    map(1:size(w, 2)) do i
         ps = vcat(oed.ps[.! oed.w_indicator], w[:,i])
         _prob = remake(oed.prob, u0 = i >= 2 ? sol_[:, end] : oed.prob.u0 , tspan = oed.tgrid[i], p = ps)
         sol_ = solve(_prob, alg, sensealg = ForwardDiffSensitivity(), kwargs...)
         return sol_
     end
+end
+
+
+function compute_local_information_gain(oed::ExperimentalDesign, w::AbstractArray; return_sol = false, kwargs...)
+    G = oed.variables.G
+    sys = structural_simplify(oed.sys_original)
+    xs = states(sys)
+
+    hx = ModelingToolkit.jacobian(oed.observed, xs)
+    sol = oed(w; kwargs...)
+    t = [d.t[i] for d in sol for i=1:length(d)-1]
+    t = [t; last(ModelingToolkit.get_tspan(oed.sys_original))]
+    @info t
+    Pi = map(1:size(w, 1)) do i
+        hi = Symbolics.value.(hx[i:i,:]) .|> Float64  # This works only for constant hx -> subsitute(...) for non-constant jacobian?
+        vcat(map(1:length(sol)) do idx
+            sol_i = sol[idx]
+            Gi = sol_i[G]
+            avoid_overlap = idx==length(sol) ? 0 : 1
+            map(1:size(Gi,1)-avoid_overlap) do j
+                (hi*Gi[j])'*(hi*Gi[j])
+            end
+        end...)
+    end
+    return_sol && return Pi, t, sol
+    return Pi, t
+end
+
+function compute_global_information_gain(oed::ExperimentalDesign, w::AbstractArray, kwargs...)
+    F = oed.variables.F
+    P, t, sol = compute_local_information_gain(oed, w, return_sol=true, kwargs...)
+    F_inv = inv(last(last(sol)[F]))
+    Πi = map(1:size(w, 1)) do i
+        Pi = P[i]
+        map(Pi) do P_i
+            F_inv*P_i*F_inv
+        end
+    end
+    return Πi, t
 end

@@ -22,7 +22,7 @@ include("experimental_design.jl")
 export ExperimentalDesign
 
 include("criteria.jl")
-export FischerACriterion
+export FischerACriterion, FischerDCriterion, FischerECriterion
 
 include("optimize.jl")
 export solve
