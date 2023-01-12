@@ -41,11 +41,15 @@ function get_lagrange_multiplier(res)
     end
 end
 
-function SciMLBase.solve(ed::ExperimentalDesign, M::Int, criterion::AbstractInformationCriterion, solver, options; integer = false, ad_backend = AD.ForwardDiffBackend(), kwargs...)
+function SciMLBase.solve(ed::ExperimentalDesign, M::Float64, criterion::AbstractInformationCriterion, solver, options; integer = false, ad_backend = AD.ForwardDiffBackend(), kwargs...)
     # Define the loss and constraints
 
     n_exp = length(ed.tgrid)
     n_vars = sum(ed.w_indicator)
+
+    tspan = ModelingToolkit.get_tspan(ed.sys_original)
+    Δt = (last(tspan)-first(tspan))/n_exp
+    n_measure = maximum([1, Int(floor(M/Δt))])
 
     loss(w) = inv(n_vars) * criterion(ed, reshape(w[1:end-1], n_vars, n_exp), w[end]; kwargs...) + w[end]
 
@@ -56,7 +60,7 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Int, criterion::AbstractInfo
 
 
     w_init = zeros(Float64, n_vars*n_exp)
-    idxs = rand(1:n_vars*n_exp, M)
+    idxs = rand(1:n_vars*n_exp, n_measure)
     w_init[idxs] .= one(Float64)
     w_init = [w_init; 1e-04]
     model = Nonconvex.Model(loss)
