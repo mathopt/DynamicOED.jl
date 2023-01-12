@@ -17,15 +17,16 @@ using Nonconvex
 
 abstract type AbstractExperimentalDesign end
 abstract type AbstractInformationCriterion end
+abstract type AbstractOEDSolution end
 
 include("experimental_design.jl")
 export ExperimentalDesign
 
 include("criteria.jl")
-export FischerACriterion, FischerDCriterion, FischerECriterion
-export ACriterion
+export FisherACriterion, FisherDCriterion, FisherECriterion
+export ACriterion, DCriterion, ECriterion
 
 include("optimize.jl")
-export solve
+export OEDSolution, solve
 
 end # module DynamicOED

@@ -60,7 +60,7 @@ function build_oed_system(sys::ODESystem; observed = nothing, tspan = ModelingTo
     D = Differential(t)
     @variables (z(t))[1:length(observed)]=zeros(length(observed)) [description="Measurement State"]
     @parameters w[1:length(observed)]=ones(length(observed)) [description="Measurement function", tunable=true]
-    @variables (F(t))[1:size(hx, 1), 1:size(hx, 2)]=zeros(Float64, size(hx)) [description="Fischer Information Matrix"]
+    @variables (F(t))[1:size(hx, 1), 1:size(hx, 2)]=zeros(Float64, size(hx)) [description="Fisher Information Matrix"]
     @variables (G(t))[1:size(fp, 1), 1:size(fp, 2)]=zeros(Float64, size(fp)) [description="Sensitivity State"]
 
     # Build the new system of deqs
@@ -100,7 +100,7 @@ function (oed::ExperimentalDesign)(w::AbstractArray; alg = Tsit5(), kwargs...)
 end
 
 
-function compute_local_information_gain(oed::ExperimentalDesign, w::AbstractArray; return_sol = false, kwargs...)
+function compute_local_information_gain(oed::ExperimentalDesign, w::AbstractArray, kwargs...)
     G = oed.variables.G
     sys = structural_simplify(oed.sys_original)
     xs = states(sys)
@@ -109,7 +109,7 @@ function compute_local_information_gain(oed::ExperimentalDesign, w::AbstractArra
     sol = oed(w; kwargs...)
     t = [d.t[i] for d in sol for i=1:length(d)-1]
     t = [t; last(ModelingToolkit.get_tspan(oed.sys_original))]
-    @info t
+
     Pi = map(1:size(w, 1)) do i
         hi = Symbolics.value.(hx[i:i,:]) .|> Float64  # This works only for constant hx -> subsitute(...) for non-constant jacobian?
         vcat(map(1:length(sol)) do idx
@@ -121,13 +121,12 @@ function compute_local_information_gain(oed::ExperimentalDesign, w::AbstractArra
             end
         end...)
     end
-    return_sol && return Pi, t, sol
-    return Pi, t
+    return Pi, t, sol
 end
 
 function compute_global_information_gain(oed::ExperimentalDesign, w::AbstractArray, kwargs...)
     F = oed.variables.F
-    P, t, sol = compute_local_information_gain(oed, w, return_sol=true, kwargs...)
+    P, t, sol = compute_local_information_gain(oed, w, kwargs...)
     F_inv = inv(last(last(sol)[F]))
     Πi = map(1:size(w, 1)) do i
         Pi = P[i]
@@ -135,5 +134,5 @@ function compute_global_information_gain(oed::ExperimentalDesign, w::AbstractArr
             F_inv*P_i*F_inv
         end
     end
-    return Πi, t
+    return Πi, t, sol
 end
