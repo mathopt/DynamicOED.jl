@@ -36,7 +36,6 @@ function (c::ACriterion)(ed::ExperimentalDesign, w::AbstractArray, e; kwargs...)
     F = ed.variables.F
     sol = last(ed(w; kwargs...))
     F_ = last(sol[F])
-    #(F_[1,1] + F_[2,2]) / (F_[1,1]*F_[2,2]-F_[1,2]*F_[2,1])
     tr(inv(F_+e*I))
 end
 
@@ -67,7 +66,10 @@ end
 # SolutionObject definen -> InformationGain, SolutionTrajectory, LagrangeMultiplier (dispatchen auf Solver)
     # ✓ done
 # PlotRecipe für SOlution Object
-    # wenn Lagrange da plotte die mit, sonst nicht
+    # Plotte solution
+    # Plotte sampling decision
+    # Plotte Lagrange Multiplier wenn verfügbar
+    # Plotte Sensitivities
 # FAKTOR 2 in Information Gain? Wo kommt der her?
 
 # Wenn Zeit ist:

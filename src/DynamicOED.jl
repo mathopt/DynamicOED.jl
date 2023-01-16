@@ -14,6 +14,7 @@ using OrdinaryDiffEq
 using SciMLSensitivity
 
 using Nonconvex
+using RecipesBase
 
 abstract type AbstractExperimentalDesign end
 abstract type AbstractInformationCriterion end
@@ -28,5 +29,7 @@ export ACriterion, DCriterion, ECriterion
 
 include("optimize.jl")
 export OEDSolution, solve
+
+include("plotting.jl")
 
 end # module DynamicOED

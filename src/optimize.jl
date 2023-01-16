@@ -11,28 +11,32 @@ struct OEDSolution{P,Q,R,S} <: AbstractOEDSolution
     sol::P
     "Optimal sampling solution"
     w::Q
-    "Information gain matrices"
+    "Information gain matrices and sensitivities"
     information_gain::R
     "Lagrange multipliers corresponding to sampling constraint"
     multiplier::S
+    "Experimental design"
+    oed::AbstractExperimentalDesign
 end
 
 function OEDSolution(oed, w; μ=nothing, kwargs...)
     n_vars = sum(oed.w_indicator)
 
-    variables =  (w_opt = reshape(w[1:end-1], n_vars, :), ϵ = w[end])
+    variables   =  (w = reshape(w[1:end-1], n_vars, :), regularization = w[end])
 
-    P, t, sol = DynamicOED.compute_local_information_gain(oed, variables.w_opt);
-    Π, _, _ = DynamicOED.compute_global_information_gain(oed, variables.w_opt);
+    P, t, sol   = DynamicOED.compute_local_information_gain(oed, variables.w);
+    Π, _, _     = DynamicOED.compute_global_information_gain(oed, variables.w);
+    G           = DynamicOED.extract_sensitivities(oed, sol)
 
-    information_gain = (t=t, local_information_gain = P, global_information_gain=Π)
+    information_gain = (t=t, local_information_gain = P, global_information_gain=Π,
+                        sensitivities = G)
 
     return OEDSolution{typeof(sol), typeof(variables), typeof(information_gain), typeof(μ)}(
-        sol, variables, information_gain, μ
+        sol, variables, information_gain, μ, oed
     )
 end
 
-# TODO: HOW TO DISPATCH ON SOLVERS, THEY ARE NOT KNOWN HERE!
+# TODO: HOW TO DISPATCH ON SOLVERS? THEY ARE NOT KNOWN HERE!
 function get_lagrange_multiplier(res)
     try
         return res.problem.mult_g

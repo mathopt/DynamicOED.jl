@@ -50,7 +50,7 @@ function build_oed_system(sys::ODESystem; observed = nothing, tspan = ModelingTo
     eqs = map(x->x.rhs, equations(simplified_sys))
     xs = states(simplified_sys)
     ps = [p for p in parameters(simplified_sys) if istunable(p) && !isinput(p)]
-
+    np, nx = length(ps), length(xs)
     fx = ModelingToolkit.jacobian(eqs, xs)
     fp = ModelingToolkit.jacobian(eqs, ps)
     hx = ModelingToolkit.jacobian(observed, xs)
@@ -60,8 +60,8 @@ function build_oed_system(sys::ODESystem; observed = nothing, tspan = ModelingTo
     D = Differential(t)
     @variables (z(t))[1:length(observed)]=zeros(length(observed)) [description="Measurement State"]
     @parameters w[1:length(observed)]=ones(length(observed)) [description="Measurement function", tunable=true]
-    @variables (F(t))[1:size(hx, 1), 1:size(hx, 2)]=zeros(Float64, size(hx)) [description="Fisher Information Matrix"]
-    @variables (G(t))[1:size(fp, 1), 1:size(fp, 2)]=zeros(Float64, size(fp)) [description="Sensitivity State"]
+    @variables (F(t))[1:np, 1:np]=zeros(Float64, (np,np)) [description="Fisher Information Matrix"]
+    @variables (G(t))[1:nx, 1:np]=zeros(Float64, (nx,np)) [description="Sensitivity State"]
 
     # Build the new system of deqs
     w = collect(w)
@@ -99,6 +99,16 @@ function (oed::ExperimentalDesign)(w::AbstractArray; alg = Tsit5(), kwargs...)
     end
 end
 
+
+function extract_sensitivities(oed::ExperimentalDesign, sol::AbstractArray)
+    G_ = oed.variables.G
+    G = vcat(map(enumerate(sol)) do (i,d)
+        avoid_overlap = i == length(sol) ? 0 : 1
+        d[G_][1:end-avoid_overlap]
+    end...)
+
+    hcat([g[:] for g in G]...)
+end
 
 function compute_local_information_gain(oed::ExperimentalDesign, w::AbstractArray, kwargs...)
     G = oed.variables.G
