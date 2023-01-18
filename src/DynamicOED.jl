@@ -14,7 +14,9 @@ using OrdinaryDiffEq
 using SciMLSensitivity
 
 using Nonconvex
-using RecipesBase
+using CairoMakie
+using Reexport
+@reexport using CairoMakie: save
 
 abstract type AbstractExperimentalDesign end
 abstract type AbstractInformationCriterion end
@@ -31,5 +33,6 @@ include("optimize.jl")
 export OEDSolution, solve
 
 include("plotting.jl")
+export plotOED
 
 end # module DynamicOED

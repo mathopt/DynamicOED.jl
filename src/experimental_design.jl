@@ -110,7 +110,8 @@ function extract_sensitivities(oed::ExperimentalDesign, sol::AbstractArray)
     hcat([g[:] for g in G]...)
 end
 
-function compute_local_information_gain(oed::ExperimentalDesign, w::AbstractArray, kwargs...)
+function compute_local_information_gain(oed::ExperimentalDesign, w_::NamedTuple, kwargs...)
+    w, e = w_.w, w_.regularization
     G = oed.variables.G
     sys = structural_simplify(oed.sys_original)
     xs = states(sys)
@@ -134,10 +135,11 @@ function compute_local_information_gain(oed::ExperimentalDesign, w::AbstractArra
     return Pi, t, sol
 end
 
-function compute_global_information_gain(oed::ExperimentalDesign, w::AbstractArray, kwargs...)
+function compute_global_information_gain(oed::ExperimentalDesign, w_::NamedTuple, kwargs...)
+    w, e = w_.w, w_.regularization
     F = oed.variables.F
-    P, t, sol = compute_local_information_gain(oed, w, kwargs...)
-    F_inv = inv(last(last(sol)[F]))
+    P, t, sol = compute_local_information_gain(oed, w_, kwargs...)
+    F_inv = inv(last(last(sol)[F])+e*I)
     Πi = map(1:size(w, 1)) do i
         Pi = P[i]
         map(Pi) do P_i

@@ -24,9 +24,9 @@ function OEDSolution(oed, w; μ=nothing, kwargs...)
 
     variables   =  (w = reshape(w[1:end-1], n_vars, :), regularization = w[end])
 
-    P, t, sol   = DynamicOED.compute_local_information_gain(oed, variables.w);
-    Π, _, _     = DynamicOED.compute_global_information_gain(oed, variables.w);
-    G           = DynamicOED.extract_sensitivities(oed, sol)
+    P, t, sol   = compute_local_information_gain(oed, variables);
+    Π, _, _     = compute_global_information_gain(oed, variables);
+    G           = extract_sensitivities(oed, sol)
 
     information_gain = (t=t, local_information_gain = P, global_information_gain=Π,
                         sensitivities = G)
