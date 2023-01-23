@@ -85,19 +85,16 @@ end
 
 
 function switching_function(res::OEDSolution{FisherACriterion})
-    @info "FisherACriterion..."
     np  = sum(res.oed.w_indicator)
     return [tr.(P)/np for P in res.information_gain.local_information_gain]
 end
 
 function switching_function(res::OEDSolution{ACriterion})
-    @info "ACriterion..."
     np  = sum(res.oed.w_indicator)
     return [tr.(C)/np for C in res.information_gain.global_information_gain]
 end
 
 function switching_function(res::OEDSolution{DCriterion})
-    @info "Dcriterion.."
     F_ = res.oed.variables.F
     F = last(last(res.sol)[F_])
     detC = det(inv(F))
@@ -107,7 +104,6 @@ function switching_function(res::OEDSolution{DCriterion})
 end
 
 function switching_function(res::OEDSolution{ECriterion})
-    @info "Dcriterion.."
     F_ = res.oed.variables.F
     F = last(last(res.sol)[F_])
     eigenC = eigen(inv(F))
