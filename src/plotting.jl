@@ -60,12 +60,12 @@
 
 function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure())
     tspan       = (first(res.sol).t[1], last(res.sol).t[end])
-    Δt = -(reverse(tspan)...)/length(res.sol)
-    tControl = first(tspan):Δt:last(tspan)
-
-    t    = res.information_gain.t
-    gain = [tr.(gain_) for gain_ in res.information_gain.global_information_gain]
-    G    = res.information_gain.sensitivities
+    Δt          = -(reverse(tspan)...)/length(res.sol)
+    tControl    = first(tspan):Δt:last(tspan)
+    n_vars      = sum(res.oed.w_indicator)
+    t           = res.information_gain.t
+    gain        = [tr.(gain_)/n_vars for gain_ in res.information_gain.global_information_gain]
+    G           = res.information_gain.sensitivities
 
     t   = vcat([s.t[1:end-1] for s in res.sol]...)
     t   = [t; [last(res.sol).t[end]]]
@@ -108,11 +108,13 @@ function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure
             leg = Legend(f[3,nCols+1], ps, ls)
         end
         push!(axs, ax2)
-        ax2.yaxisposition = :right
-        ax2.yticklabelalign = (:left, :center)
-        ax2.xticklabelsvisible = false
-        ax2.xticklabelsvisible = false
-        ax2.xlabelvisible = false
+        ax2.yaxisposition       = :right
+        ax2.yticklabelalign     = (:left, :center)
+        ax2.xticklabelsvisible  = false
+        ax2.ygridstyle          = :dash
+        ax2.ygridcolor          = :grey
+        ax2.xticklabelsvisible  = false
+        ax2.xlabelvisible       = false
     end
     linkyaxes!(axs...)
 

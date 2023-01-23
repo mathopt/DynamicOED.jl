@@ -6,7 +6,7 @@ A container for the solution of an OED problem.
 # Fields
 $(FIELDS)
 """
-struct OEDSolution{P,Q,R,S} <: AbstractOEDSolution
+struct OEDSolution{CRITERION, P,Q,R,S} <: AbstractOEDSolution
     "The solution of the system of ODEs."
     sol::P
     "Optimal sampling solution"
@@ -19,7 +19,7 @@ struct OEDSolution{P,Q,R,S} <: AbstractOEDSolution
     oed::AbstractExperimentalDesign
 end
 
-function OEDSolution(oed, w; μ=nothing, kwargs...)
+function OEDSolution(oed, criterion, w; μ=nothing, kwargs...)
     n_vars = sum(oed.w_indicator)
 
     variables   =  (w = reshape(w[1:end-1], n_vars, :), regularization = w[end])
@@ -31,7 +31,7 @@ function OEDSolution(oed, w; μ=nothing, kwargs...)
     information_gain = (t=t, local_information_gain = P, global_information_gain=Π,
                         sensitivities = G)
 
-    return OEDSolution{typeof(sol), typeof(variables), typeof(information_gain), typeof(μ)}(
+    return OEDSolution{typeof(criterion), typeof(sol), typeof(variables), typeof(information_gain), typeof(μ)}(
         sol, variables, information_gain, μ, oed
     )
 end
@@ -80,5 +80,40 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Float64, criterion::Abstract
 
     multiplier = get_lagrange_multiplier(res)
 
-    return OEDSolution(ed, res.minimizer, μ=multiplier, kwargs...)
+    return OEDSolution(ed, criterion, res.minimizer, μ=multiplier, kwargs...)
+end
+
+
+function switching_function(res::OEDSolution{FisherACriterion})
+    @info "FisherACriterion..."
+    np  = sum(res.oed.w_indicator)
+    return [tr.(P)/np for P in res.information_gain.local_information_gain]
+end
+
+function switching_function(res::OEDSolution{ACriterion})
+    @info "ACriterion..."
+    np  = sum(res.oed.w_indicator)
+    return [tr.(C)/np for C in res.information_gain.global_information_gain]
+end
+
+function switching_function(res::OEDSolution{DCriterion})
+    @info "Dcriterion.."
+    F_ = res.oed.variables.F
+    F = last(last(res.sol)[F_])
+    detC = det(inv(F))
+    map(res.information_gain.global_information_gain) do Π
+        detC .* [sum(F .* Πᵢ) for Πᵢ in Π]
+    end
+end
+
+function switching_function(res::OEDSolution{ECriterion})
+    @info "Dcriterion.."
+    F_ = res.oed.variables.F
+    F = last(last(res.sol)[F_])
+    eigenC = eigen(inv(F))
+    λ_max, idx_max = findmax(sign.(eigenC.values) .* abs.(eigenC.values))
+    v = eigenC.vectors[:,idx_max:idx_max]
+    map(res.information_gain.global_information_gain) do Π
+        [v' * Πᵢ * v for Πᵢ in Π]
+    end
 end

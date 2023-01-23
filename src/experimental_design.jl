@@ -139,12 +139,14 @@ function compute_global_information_gain(oed::ExperimentalDesign, w_::NamedTuple
     w, e = w_.w, w_.regularization
     F = oed.variables.F
     P, t, sol = compute_local_information_gain(oed, w_, kwargs...)
-    F_inv = inv(last(last(sol)[F])+e*I)
-    Πi = map(1:size(w, 1)) do i
+    F_ = last(last(sol)[F])
+    F_inv = det(F_) > 1e-05 ? inv(F_) : nothing
+    Πi = isnothing(F_inv) ? nothing : map(1:size(w, 1)) do i
         Pi = P[i]
         map(Pi) do P_i
             F_inv*P_i*F_inv
         end
     end
+
     return Πi, t, sol
 end
