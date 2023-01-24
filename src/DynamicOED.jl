@@ -30,7 +30,7 @@ export FisherACriterion, FisherDCriterion, FisherECriterion
 export ACriterion, DCriterion, ECriterion
 
 include("optimize.jl")
-export OEDSolution, solve, switching_function
+export OEDSolution, solve
 
 include("plotting.jl")
 export plotOED

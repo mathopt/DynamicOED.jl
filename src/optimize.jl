@@ -6,7 +6,9 @@ A container for the solution of an OED problem.
 # Fields
 $(FIELDS)
 """
-struct OEDSolution{CRITERION, P,Q,R,S} <: AbstractOEDSolution
+struct OEDSolution{C,P,Q,R,S} <: AbstractOEDSolution
+    "Criterion"
+    criterion::C
     "The solution of the system of ODEs."
     sol::P
     "Optimal sampling solution"
@@ -32,7 +34,7 @@ function OEDSolution(oed, criterion, w; μ=nothing, kwargs...)
                         sensitivities = G)
 
     return OEDSolution{typeof(criterion), typeof(sol), typeof(variables), typeof(information_gain), typeof(μ)}(
-        sol, variables, information_gain, μ, oed
+        criterion, sol, variables, information_gain, μ, oed
     )
 end
 
@@ -86,21 +88,24 @@ end
 
 function switching_function(res::OEDSolution{FisherACriterion})
     np  = sum(res.oed.w_indicator)
-    return [tr.(P)/np for P in res.information_gain.local_information_gain]
+    sw = [tr.(P)/np for P in res.information_gain.local_information_gain]
+    return (sw, "trace P(t)")
 end
 
 function switching_function(res::OEDSolution{ACriterion})
     np  = sum(res.oed.w_indicator)
-    return [tr.(C)/np for C in res.information_gain.global_information_gain]
+    sw = [tr.(C)/np for C in res.information_gain.global_information_gain]
+    return (sw, "trace Π(t)")
 end
 
 function switching_function(res::OEDSolution{DCriterion})
     F_ = res.oed.variables.F
     F = last(last(res.sol)[F_])
     detC = det(inv(F))
-    map(res.information_gain.global_information_gain) do Π
+    sw = map(res.information_gain.global_information_gain) do Π
         detC .* [sum(F .* Πᵢ) for Πᵢ in Π]
     end
+    return (sw,  "det C(tf) ⋅ ∑ F(tf) ∘ Π(t)")
 end
 
 function switching_function(res::OEDSolution{ECriterion})
@@ -109,7 +114,12 @@ function switching_function(res::OEDSolution{ECriterion})
     eigenC = eigen(inv(F))
     λ_max, idx_max = findmax(sign.(eigenC.values) .* abs.(eigenC.values))
     v = eigenC.vectors[:,idx_max:idx_max]
-    map(res.information_gain.global_information_gain) do Π
+    sw = map(enumerate(res.information_gain.global_information_gain)) do (i,Π)
         [v' * Πᵢ * v for Πᵢ in Π]
     end
+    return (sw, "v^T Π(t) v")
+end
+
+function _supported_criteria()
+    return [FisherACriterion(), ACriterion(), DCriterion(), ECriterion()]
 end
