@@ -141,6 +141,12 @@ function compute_global_information_gain(oed::ExperimentalDesign, w_::NamedTuple
     P, t, sol = compute_local_information_gain(oed, w_, kwargs...)
     F_ = last(last(sol)[F])
     F_inv = det(F_) > 1e-05 ? inv(F_) : nothing
+    while isnothing(F_inv)
+        F_ += 1e-6*I
+        if det(F_) > 1e-02
+            F_inv = inv(F_)
+        end
+    end
     Πi = isnothing(F_inv) ? nothing : map(1:size(w, 1)) do i
         Pi = P[i]
         map(Pi) do P_i
