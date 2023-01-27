@@ -25,12 +25,12 @@ abstract type AbstractOEDSolution end
 include("experimental_design.jl")
 export ExperimentalDesign
 
+include("optimize.jl")
+export OEDSolution, solve
+
 include("criteria.jl")
 export FisherACriterion, FisherDCriterion, FisherECriterion
 export ACriterion, DCriterion, ECriterion
-
-include("optimize.jl")
-export OEDSolution, solve
 
 include("plotting.jl")
 export plotOED
