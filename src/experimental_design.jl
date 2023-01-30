@@ -60,15 +60,16 @@ function build_oed_system(sys::ODESystem; observed = nothing, tspan = ModelingTo
     D = Differential(t)
     @variables (z(t))[1:length(observed)]=zeros(length(observed)) [description="Measurement State"]
     @parameters w[1:length(observed)]=ones(length(observed)) [description="Measurement function", tunable=true]
-    @variables (F(t))[1:np, 1:np]=zeros(Float64, (np,np)) [description="Fisher Information Matrix"]
+    @variables (F(t))[1:Int(np*(np+1)/2)]=zeros(Float64, (np,np)) [description="Fisher Information Matrix"] # Symmetric -> avoid redundancies!
     @variables (G(t))[1:nx, 1:np]=zeros(Float64, (nx,np)) [description="Sensitivity State"]
 
     # Build the new system of deqs
     w = collect(w)
     G = collect(G)
     hx = collect(hx)
+    idxs = triu(ones(np,np)) .== 1.0
     df = sum(enumerate(w)) do (i, wi)
-        wi*((hx[i:i, :]*G)'*(hx[i:i,:]*G))
+        wi*((hx[i:i, :]*G)'*(hx[i:i,:]*G))[idxs]
     end
 
     @named oed_system = ODESystem([
@@ -139,7 +140,7 @@ function compute_global_information_gain(oed::ExperimentalDesign, w_::NamedTuple
     w, e = w_.w, w_.regularization
     F = oed.variables.F
     P, t, sol = compute_local_information_gain(oed, w_, kwargs...)
-    F_ = last(last(sol)[F])
+    F_ = _symmetric_from_vector(last(last(sol)[F]))
     F_inv = det(F_) > 1e-05 ? inv(F_) : nothing
     while isnothing(F_inv)
         F_ += 1e-6*I
