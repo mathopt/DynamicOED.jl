@@ -38,6 +38,21 @@ function ExperimentalDesign(sys::ODESystem, time_grid = [ModelingToolkit.get_tsp
     )
 end
 
+function ExperimentalDesign(sys::ODESystem, n::Int; tspan = ModelingToolkit.get_tspan(sys), kwargs...)
+    Δt = -(reverse(tspan)...)/n
+    ExperimentalDesign(sys, Δt; tspan = tspan, kwargs...)
+end
+
+function ExperimentalDesign(sys::ODESystem, Δt::Real; tspan = ModelingToolkit.get_tspan(sys), kwargs...)
+    first_ts = first(tspan):Δt:(last(tspan)-Δt)
+    last_ts = (first(tspan)+Δt):Δt:last(tspan)
+    tgrid = collect(zip(first_ts, last_ts))
+    ExperimentalDesign(
+        sys, tgrid; kwargs...
+    )
+end
+
+
 Base.show(io::IO, oed::ExperimentalDesign) = show(io, oed.sys)
 Base.summary(io::IO, oed::ExperimentalDesign) = summary(io, oed.sys)
 Base.print(io::IO, oed::ExperimentalDesign) = print(io, oed.sys)
@@ -111,8 +126,8 @@ function extract_sensitivities(oed::ExperimentalDesign, sol::AbstractArray)
     hcat([g[:] for g in G]...)
 end
 
-function compute_local_information_gain(oed::ExperimentalDesign, w_::NamedTuple, kwargs...)
-    w, e = w_.w, w_.regularization
+function compute_local_information_gain(oed::ExperimentalDesign, x::NamedTuple, kwargs...)
+    w, τ = x.w, x.τ
     G = oed.variables.G
     sys = structural_simplify(oed.sys_original)
     xs = states(sys)
@@ -136,10 +151,10 @@ function compute_local_information_gain(oed::ExperimentalDesign, w_::NamedTuple,
     return Pi, t, sol
 end
 
-function compute_global_information_gain(oed::ExperimentalDesign, w_::NamedTuple, kwargs...)
-    w, e = w_.w, w_.regularization
+function compute_global_information_gain(oed::ExperimentalDesign, x::NamedTuple, kwargs...)
+    w, τ = x.w, x.τ
     F = oed.variables.F
-    P, t, sol = compute_local_information_gain(oed, w_, kwargs...)
+    P, t, sol = compute_local_information_gain(oed, x, kwargs...)
     F_ = _symmetric_from_vector(last(last(sol)[F]))
     F_inv = det(F_) > 1e-05 ? inv(F_) : nothing
     while isnothing(F_inv)

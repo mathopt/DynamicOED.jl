@@ -1,5 +1,5 @@
-function _symmetric_from_vector(x::AbstractArray)
-    n = Int(sqrt(2 * length(x) + 0.25) - 0.5)
+function _symmetric_from_vector(x::AbstractArray{T}) where T
+    n = Int(sqrt(2 * length(x) + 0.25) - 0.5) # Find number n such that n*(n+1)/2 = length(x)
     _symmetric_from_vector(x, n)
 end
 
@@ -7,65 +7,50 @@ function _symmetric_from_vector(x::AbstractArray{T}, n::Int) where T
     return Symmetric(T.([ i<=j ? x[Int(j*(j-1)/2+i)] : 0 for i=1:n, j=1:n]))
 end
 
-function _predict_F(::C where C <: AbstractInformationCriterion, ed::ExperimentalDesign, w::AbstractArray; kwargs...)
-    F = ed.variables.F
+function apply_criterion(c, ed::ExperimentalDesign, x; kwargs...)
+    w = x.w
+    τ = x.τ
+    F_ = ed.variables.F
     sol = last(ed(w; kwargs...))
-    last(sol[F])
+    F = _symmetric_from_vector(last(sol[F_]))
+    c(F, τ)
 end
 
 struct FisherACriterion <: AbstractInformationCriterion end
 
-function (c::FisherACriterion)(ed::ExperimentalDesign, w::AbstractArray, e; kwargs...)
-    F = ed.variables.F
-    sol = last(ed(w; kwargs...))
-    F_ = _symmetric_from_vector(last(sol[F]))
-   -tr(F_)
+function (c::FisherACriterion)(F::AbstractArray{T, 2}, τ::T) where T
+   -tr(F)
 end
 
 struct FisherDCriterion <: AbstractInformationCriterion end
 
-function (c::FisherDCriterion)(ed::ExperimentalDesign, w::AbstractArray, e; kwargs...)
-    F = ed.variables.F
-    sol = last(ed(w; kwargs...))
-    F_ = _symmetric_from_vector(last(sol[F]))
-   -det(F_)
+function (c::FisherDCriterion)(F::AbstractArray{T, 2}, τ::T) where T
+   -det(F)
 end
 
 struct FisherECriterion <: AbstractInformationCriterion end
 
-function (c::FisherECriterion)(ed::ExperimentalDesign, w::AbstractArray, e; kwargs...)
-    F = ed.variables.F
-    sol = last(ed(w; kwargs...))
-    F_ = _symmetric_from_vector(last(sol[F]))
-   -minimum(abs.(eigvals(F_)))
+function (c::FisherECriterion)(F::AbstractArray{T, 2}, τ::T) where T
+   -minimum(abs.(eigvals(F)))
 end
 
 struct ACriterion <: AbstractInformationCriterion end
 
-function (c::ACriterion)(ed::ExperimentalDesign, w::AbstractArray, e; kwargs...)
-    F = ed.variables.F
-    sol = last(ed(w; kwargs...))
-    F_ = _symmetric_from_vector(last(sol[F]))
-    tr(inv(F_+e*I))
+function (c::ACriterion)(F::AbstractArray{T, 2}, τ::T) where T
+    tr(inv(F+τ*I))
 end
 
 struct DCriterion <: AbstractInformationCriterion end
 
-function (c::DCriterion)(ed::ExperimentalDesign, w::AbstractArray, e; kwargs...)
-    F = ed.variables.F
-    sol = last(ed(w; kwargs...))
-    F_ = _symmetric_from_vector(last(sol[F]))
-    det(inv(F_+e*I))
+function (c::DCriterion)(F::AbstractArray{T, 2}, τ::T) where T
+    det(inv(F+τ*I))
 end
 
 struct ECriterion <: AbstractInformationCriterion end
-# TODO: Same as for FisherECriterion
-function (c::ECriterion)(ed::ExperimentalDesign, w::AbstractArray, e; kwargs...)
-    F = ed.variables.F
-    sol = last(ed(w; kwargs...))
-    F_ = _symmetric_from_vector(last(sol[F]))
+
+function (c::ECriterion)(F::AbstractArray{T, 2}, τ::T) where T
     #maximum((abs ∘ inv).(eigvals(Symmetric(F_))))
-    maximum(abs.(eigvals(inv(F_))))
+    maximum(abs.(eigvals(inv(F+τ*I))))
 end
 
 function switching_function(res::OEDSolution{FisherACriterion})
