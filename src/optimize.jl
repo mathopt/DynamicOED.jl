@@ -50,6 +50,7 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Float64, criterion::Abstract
 
     n_exp = length(ed.tgrid)
     n_vars = sum(ed.w_indicator)
+    z = ed.variables.z
 
     tspan = ModelingToolkit.get_tspan(ed.sys_original)
     Δt = (last(tspan)-first(tspan))/n_exp
@@ -59,11 +60,11 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Float64, criterion::Abstract
 
     m_constraints(x) = begin
         sol = last(ed(reshape(x.w, n_vars, n_exp); kwargs...))
-        sol[end-n_vars+1:end,end] .- M
+        sol[z][end] .- M
     end
 
     w_init = isnothing(w_init) ? begin
-        y = zeros(Float64, n_vars*n_exp)
+        y = zeros(Float64, n_vars,n_exp)
         idxs = rand(1:n_vars*n_exp, n_measure)
         y[idxs] .= one(Float64)
         y

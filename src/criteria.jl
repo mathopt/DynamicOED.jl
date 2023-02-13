@@ -118,22 +118,4 @@ function _supported_criteria()
 end
 
 # TODO'S:
-
-# Initialisierung? Inequality constraint -> erster Aufruf von inv(F) fails weil F = 0
-    # ✓ erstmal behoben mit eps auf Hauptdiagonale und erneutem Ändern der lower bounds
-# Regularisierung -> eps als Variable? evtl. penalisieren oder gegen Null treiben?
-    # ✓ done
-# SolutionObject definen -> InformationGain, SolutionTrajectory, LagrangeMultiplier (dispatchen auf Solver)
-    # ✓ done
-# PlotRecipe für SOlution Object
-    # Plotte solution
-    # Plotte sampling decision
-    # Plotte Lagrange Multiplier wenn verfügbar
-    # Plotte Sensitivities
-# FAKTOR 2 in Information Gain? Wo kommt der her?
-
-# Wenn Zeit ist:
-# Funktion reginverse(A, eps) -> berechnet inverse mit regularisierung
-# Funtkion traceinverse(A) -> berechnet trace
-# Funktion frule_traceinverse(A) -> Formel(37) aus Sager2012
-# FrankWolfe.jl? Boscia.jl?
+# How to handle the regularization?

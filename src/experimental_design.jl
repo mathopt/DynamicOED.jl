@@ -25,6 +25,59 @@ struct ExperimentalDesign{S, P, T, PS, O} <: AbstractExperimentalDesign
     observed::O
 end
 
+function ExperimentalDesign(prob::ODEProblem, n::Int, kwargs...)
+    Δt = -(reverse(prob.tspan)...)/n
+    return ExperimentalDesign(prob, Δt, kwargs...)
+end
+
+function ExperimentalDesign(prob::ODEProblem, Δt, kwargs...)
+    tgrid = get_tgrid(Δt, prob.tspan)
+    sys = modelingtoolkitize(prob)
+    oed_sys, F, G, z, Q, observed = build_oed_system(sys; tspan = first(tgrid), ps=parameters(sys), kwargs...)
+    varmap = Dict(states(sys) .=> prob.u0)
+    parmap, p0_old = get_parmap(parameters(sys), prob.p)
+    oed_prob = ODEProblem(oed_sys, varmap, prob.tspan, parmap)
+    ps_old = parameters(sys)
+    ps_new = parameters(oed_sys)
+    w_idx = length(ps_old)+1:length(ps_new)
+    w = BitVector(Tuple(i ∈ w_idx ? true : false for i in 1:length(ps_new)))
+    p0_new = Symbolics.getdefaultval.(ps_new[w_idx])
+    p0 = eltype(p0_new).([p0_old; p0_new])
+    return ExperimentalDesign{typeof(oed_sys), typeof(oed_prob), typeof(tgrid), typeof(p0), typeof(observed)}(oed_sys, oed_prob, w, tgrid, p0,
+        (; F = F, G = G, z = z, Q = Q), sys, observed
+    )
+end
+
+function get_parmap(ps::AbstractArray, p::NamedTuple)
+    parmap, ps_ = Dict(), []
+    parnames = keys(p)
+    symbols  = Symbol.(ps)
+    for name in parnames
+        idx = argmax(symbols .== name)
+        push!(ps_, p[name])
+        push!(parmap, ps[idx] => p[name])
+    end
+
+    return parmap, ps_
+end
+
+function get_parmap(ps::AbstractArray, p::Tuple)
+    parmap, ps_ = Dict(), []
+    for (i, par) in enumerate(ps)
+        push!(ps_, p[i])
+        push!(parmap, par => p[i])
+    end
+    return parmap, ps_
+end
+
+function get_parmap(ps::AbstractArray, p::Dict)
+    return get_parmap(ps, Tuple(values(p)))
+end
+
+function get_parmap(ps::AbstractArray, p::AbstractArray)
+    return p, p
+end
+
 function ExperimentalDesign(sys::ODESystem, time_grid = [ModelingToolkit.get_tspan(sys)]; kwargs...)
     oed_sys, F, G, z, Q, observed = build_oed_system(sys; tspan = first(time_grid), kwargs...)
     oed_prob = ODEProblem(oed_sys)
@@ -44,21 +97,24 @@ function ExperimentalDesign(sys::ODESystem, n::Int; tspan = ModelingToolkit.get_
 end
 
 function ExperimentalDesign(sys::ODESystem, Δt::Real; tspan = ModelingToolkit.get_tspan(sys), kwargs...)
-    first_ts = first(tspan):Δt:(last(tspan)-Δt)
-    last_ts = (first(tspan)+Δt):Δt:last(tspan)
-    tgrid = collect(zip(first_ts, last_ts))
+    tgrid = get_tgrid(Δt, tspan)
     ExperimentalDesign(
         sys, tgrid; kwargs...
     )
 end
 
+function get_tgrid(Δt::Real, tspan::Tuple{Real, Real})
+    first_ts = first(tspan):Δt:(last(tspan)-Δt)
+    last_ts = (first(tspan)+Δt):Δt:last(tspan)
+    collect(zip(first_ts, last_ts))
+end
 
 Base.show(io::IO, oed::ExperimentalDesign) = show(io, oed.sys)
 Base.summary(io::IO, oed::ExperimentalDesign) = summary(io, oed.sys)
 Base.print(io::IO, oed::ExperimentalDesign) = print(io, oed.sys)
 
 
-function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys), kwargs...)
+function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys), ps=nothing, kwargs...)
     ## Get the eqs and the corresponding gradients
     simplified_sys = structural_simplify(sys)
 
@@ -76,7 +132,7 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
 
     eqs = map(x->x.rhs, equations(simplified_sys))
     xs = states(simplified_sys)
-    ps = [p for p in parameters(simplified_sys) if istunable(p) && !isinput(p)]
+    ps = isnothing(ps) ? [p for p in parameters(simplified_sys) if istunable(p) && !isinput(p)] : ps
     np, nx = length(ps), length(xs)
     fx = ModelingToolkit.jacobian(eqs, xs)
     fp = ModelingToolkit.jacobian(eqs, ps)
@@ -89,7 +145,6 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
     @parameters w[1:length(observed_rhs)]=ones(length(observed_rhs)) [description="Measurement function", tunable=true]
     @variables (F(t))[1:Int(np*(np+1)/2)]=zeros(Float64, (np,np)) [description="Fisher Information Matrix"] # Symmetric -> avoid redundancies!
     @variables (G(t))[1:nx, 1:np]=zeros(Float64, (nx,np)) [description="Sensitivity State"]
-
     @variables Q(t)[1:length(observed_rhs), 1:np] [description="Unweighted Fisher Information Derivative"]
 
     # Build the new system of deqs
@@ -114,7 +169,7 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
             D.(z) .~ w
         ], tspan = tspan, observed = observed_eqs
     )
-    return structural_simplify(oed_system), F, G, z, Q,  observed
+    return structural_simplify(oed_system), F, G, z, Q, observed
 end
 
 # General predict
@@ -150,11 +205,9 @@ function compute_local_information_gain(oed::ExperimentalDesign, x::NamedTuple, 
     w, τ = x.w, x.τ
     Q = oed.variables.Q
     n_vars = size(Q,1)
-
     sol = oed(w; kwargs...)
     t = [d.t[i] for d in sol for i=1:length(d)-1]
     t = [t; last(ModelingToolkit.get_tspan(oed.sys_original))]
-
     Qs = reduce(vcat, map(enumerate(sol)) do (i,s)
         i < length(sol) ? s(s.t)[Q][1:end-1] : s(s.t)[Q]
     end)

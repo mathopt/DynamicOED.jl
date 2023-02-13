@@ -65,7 +65,6 @@ function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure
     n_vars      = sum(res.oed.w_indicator)
     t           = res.information_gain.t
     gain        = [tr.(gain_)/n_vars for gain_ in res.information_gain.global_information_gain]
-    G           = res.information_gain.sensitivities
 
     plot_multiplier = !isnothing(res.multiplier) && res.criterion in _supported_criteria()
 
@@ -74,7 +73,7 @@ function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure
     t   = [t; [last(res.sol).t[end]]]
     sol = vcat([s[idxs][1:end-1] for s in res.sol]...)
     sol = hcat([sol; [last(res.sol)[idxs][end]]]...)
-    labels = idxs .|> string
+    labels = collect(idxs .|> string)
 
     ax0 = Axis(f[1,1:n_vars], title="Differential states", xlabel="Time")
     for (i, row) in enumerate(eachrow(sol))
@@ -83,13 +82,12 @@ function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure
     f[1, n_vars+1] = Legend(f, ax0)
 
     # Plot sensitivities
+    labelsG = collect(vec(res.oed.variables.G)) .|> string
     ax21 = Axis(f[2,1:n_vars], title="Sensitivities", xlabel="Time")
-    for (i, g) in enumerate(eachrow(G))
-        lines!(ax21, t, g, label="G$i(t)")
+    foreach(enumerate(eachrow(res.information_gain.sensitivities))) do (i,g)
+        lines!(ax21, t, g, label=labelsG[i])
     end
-    nbanks_ = size(G,1) > 1 ? size(G,1) ÷ 4 : 1
-    f[2, n_vars+1] = Legend(f, ax21, nbanks=nbanks_)
-
+    f[2, n_vars+1] = Legend(f, ax21, nbanks=size(res.oed.variables.G,1))
 
     # Plot conditions for measuring or not depending on the used criterion
     H_w =  plot_multiplier ?  switching_function(res) : (gain, "trace Π(t)")
@@ -123,20 +121,3 @@ function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure
 
     f
 end
-
-#@recipe(PlotOEDSolution, oedresult) do scene
-#    Theme(
-#        plot_color = :red
-#    )
-#end
-#
-#function Makie.plot!(p::PlotOEDSolution)
-#    oedresult = p[:oedresult][]
-#
-#
-#    for (i, g) in enumerate(gain)
-#        lines!(p[1,i], x, g, color = p[:plot_color][], label="trace Π$i(t)", xlabel="Time")
-#        hlines!(p, oedresult.multiplier[i], linestyle=:dash, label="μ$i")
-#    end
-#    p
-#end
