@@ -45,7 +45,8 @@ function get_lagrange_multiplier(res)
     end
 end
 
-function SciMLBase.solve(ed::ExperimentalDesign, M::Float64, criterion::AbstractInformationCriterion, solver, options; integer = false, ad_backend = AD.ForwardDiffBackend(), w_init = nothing, kwargs...)
+function SciMLBase.solve(ed::ExperimentalDesign, M::Float64, criterion::AbstractInformationCriterion,
+    solver, options; integer = false, ad_backend = AD.ForwardDiffBackend(), w_init = nothing, kwargs...)
     # Define the loss and constraints
 
     n_exp = length(ed.tgrid)

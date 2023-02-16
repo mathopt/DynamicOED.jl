@@ -1,63 +1,3 @@
-#@recipe function plot(res::OEDSolution, idxs=states(res.oed.sys_original))
-#    n_plots     = 2
-#    n_meas      = length(res.information_gain.global_information_gain)
-#    tspan       = (first(res.sol).t[1], last(res.sol).t[end])
-#    tControl    = first(tspan):(last(tspan)-first(tspan))/length(res.sol):last(tspan)
-#
-#    layout  := (n_plots + n_meas)
-#    grid    := true
-#    size    := (900,900)
-#
-#    for (i, d) in enumerate(res.sol)
-#        labels = i == 1 ? reshape(idxs, 1, length(idxs)) : nothing
-#        @series begin
-#            seriestype  := :path
-#            xlims       := tspan
-#            labels      := labels
-#            title       := "Differential states"
-#            subplot     := 1
-#            color       := [i for i=1:size(idxs,1)]'
-#            idxs        := idxs
-#            d
-#        end
-#    end
-#
-#    @series begin
-#        seriestype  := :path
-#        subplot     := 2
-#        title       := "Sensitivities"
-#        labels      := hcat(["G$i(t)" for i in axes(res.information_gain.sensitivities, 1)]...)
-#        res.information_gain.t, res.information_gain.sensitivities'
-#    end
-#
-#    for (i, gain) in enumerate(res.information_gain.global_information_gain)
-#
-#        @series begin
-#            seriestype  := :path
-#            link        := :x
-#            subplot     := 2 + i
-#            label       := "trace Π$i(t)"
-#            res.information_gain.t, tr.(gain)
-#        end
-#        # TODO: FIND OUT HOW TO PLOT IN SAME SUBPLOT WITH TWO Y AXIS, see, e.g. twinx() in Plots.jl
-#        @series begin
-#            seriestype  := :steppre
-#            subplot     := 2+i
-#            label       := "w$i(t)"
-#            tControl, [res.w.w[i,1]; res.w.w[i,:]]
-#        end
-#
-#        @series begin
-#            seriestype  := :hline
-#            linestyle   := :dash
-#            subplot     := 2 + i
-#            title       := "Information gain Π$i \nand sampling w$i"
-#            label       := "μ$i"
-#            [res.multiplier[i]]
-#        end
-#    end
-#end
-
 function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure())
     tspan       = (first(res.sol).t[1], last(res.sol).t[end])
     Δt          = -(reverse(tspan)...)/length(res.sol)
@@ -82,7 +22,7 @@ function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure
     f[1, n_vars+1] = Legend(f, ax0)
 
     # Plot sensitivities
-    labelsG = collect(vec(res.oed.variables.G)) .|> string
+    labelsG = collect(vec(res.oed.variables.G)) .|> string .|> remove_excess_parentheses_and_whitespace
     ax21 = Axis(f[2,1:n_vars], title="Sensitivities", xlabel="Time")
     foreach(enumerate(eachrow(res.information_gain.sensitivities))) do (i,g)
         lines!(ax21, t, g, label=labelsG[i])
@@ -120,4 +60,13 @@ function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure
     linkyaxes!(axs...)
 
     f
+end
+
+function remove_excess_parentheses_and_whitespace(str::String)
+    idx1 = first(findfirst("(", str))
+    idx1 == first(findlast("(", str)) && return str # only remove outermost set of parentheses
+    idx2 = first(findlast(")", str))
+
+    str = str[[i for i=1:length(str) if i != idx1 && i != idx2]]
+    filter(x -> !isspace(x), str)
 end
