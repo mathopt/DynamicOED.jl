@@ -45,17 +45,24 @@ function get_lagrange_multiplier(res)
     end
 end
 
-function SciMLBase.solve(ed::ExperimentalDesign, M::Float64, criterion::AbstractInformationCriterion,
-    solver, options; integer = false, ad_backend = AD.ForwardDiffBackend(), w_init = nothing, kwargs...)
-    # Define the loss and constraints
+function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector{<:Real}},
+    criterion::AbstractInformationCriterion, solver, options; integer = false, ad_backend = AD.ForwardDiffBackend(),
+    w_init = nothing, kwargs...)
 
+    # Define the loss and constraints
     n_exp = length(ed.tgrid)
     n_vars = sum(ed.w_indicator)
     z = ed.variables.z
 
+    if isa(M, AbstractVector)
+        @assert length(M) == n_vars "Number of measurement constraints must be equal to the number of observed variables or scalar!"
+    else
+        M = M*ones(typeof(M), n_vars)
+    end
+
     tspan = ModelingToolkit.get_tspan(ed.sys_original)
     Δt = (last(tspan)-first(tspan))/n_exp
-    n_measure = maximum([1, Int(floor(M/Δt))])
+    n_measure = map(x -> maximum([1,x]),  Int.(floor.(M./Δt)))
 
     loss(x) = apply_criterion(criterion, ed, x; kwargs...)/n_vars + x.τ
 
@@ -66,8 +73,10 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Float64, criterion::Abstract
 
     w_init = isnothing(w_init) ? begin
         y = zeros(Float64, n_vars,n_exp)
-        idxs = rand(1:n_vars*n_exp, n_measure)
-        y[idxs] .= one(Float64)
+        for i=1:n_vars
+            idxs = rand(1:n_exp, n_measure[i])
+            y[:,idxs] .= one(Float64)
+        end
         y
     end : w_init
     @assert length(w_init) == n_vars * n_exp "Provided initial value must have correct dimension. Got $(length(w_init)), expected $(n_vars*n_exp)."

@@ -25,17 +25,54 @@ struct ExperimentalDesign{S, P, T, PS, O} <: AbstractExperimentalDesign
     observed::O
 end
 
-function ExperimentalDesign(prob::ODEProblem, n::Int, kwargs...)
+function ExperimentalDesign(prob::ODEProblem, n::Int; params=nothing, observed=nothing, kwargs...)
     Δt = -(reverse(prob.tspan)...)/n
-    return ExperimentalDesign(prob, Δt, kwargs...)
+    return ExperimentalDesign(prob, Δt, params=params, observed=observed; kwargs...)
 end
 
-function ExperimentalDesign(prob::ODEProblem, Δt, kwargs...)
+"""
+$(SIGNATURES)
+
+Constructs an `ExperimentalDesign` from given `ODEProblem`
+- prob is the ODEProblem. The problems' parameters may be of type NamedTuple, Dict, Tuple or simply an Array.
+- Δt is the discretization for the measurement function.
+- params is an optional parameter to identify a subset of tunable parameters of the system of ODEs. This can be either a NamedTuple in case of a NamedTuple, an array containing a subset of keys of the Dict, or simply an array of indices of the tunable parameters.
+"""
+function ExperimentalDesign(prob::ODEProblem, Δt; params=nothing, observed=nothing, kwargs...)
     tgrid = get_tgrid(Δt, prob.tspan)
     sys = modelingtoolkitize(prob)
-    oed_sys, F, G, z, Q, observed = build_oed_system(sys; tspan = first(tgrid), ps=parameters(sys), kwargs...)
+    sub_params = begin
+        if !isnothing(params)
+            params
+        elseif typeof(prob.p) <: NamedTuple
+            prob.p
+        elseif typeof(prob.p) <: Dict
+            collect(keys(prob.p))
+        elseif typeof(prob.p) <: Tuple || typeof(prob.p) <: AbstractArray
+            collect(1:length(prob.p))
+        end
+    end
+
+    parmap, p0_old, ps = get_parmap(parameters(sys), prob.p, sub_params)
+
+    # Define observed in the states of the modelingtoolkitized syste
+    t_ = ModelingToolkit.get_iv(sys)
+    p_ = parameters(sys)
+    s_ = states(sys)
+    observed_eqs, obs_ = begin
+        if !isnothing(observed)
+            obs_ = isnothing(observed) ? nothing : observed(prob.u0, prob.p, first(prob.tspan))
+            @variables y(t_)[1:length(obs_)]
+            y = collect(y)
+            observed_eqs = Equation(y, observed(s_, p_, t_))
+            observed_eqs, obs_
+        else
+            nothing, nothing
+        end
+    end
+
+    oed_sys, F, G, z, Q, observed = build_oed_system(sys; tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
     varmap = Dict(states(sys) .=> prob.u0)
-    parmap, p0_old = get_parmap(parameters(sys), prob.p)
     oed_prob = ODEProblem(oed_sys, varmap, prob.tspan, parmap)
     ps_old = parameters(sys)
     ps_new = parameters(oed_sys)
@@ -48,34 +85,41 @@ function ExperimentalDesign(prob::ODEProblem, Δt, kwargs...)
     )
 end
 
-function get_parmap(ps::AbstractArray, p::NamedTuple)
-    parmap, ps_ = Dict(), []
-    parnames = keys(p)
-    symbols  = Symbol.(ps)
+
+function get_parmap(params_sys::AbstractArray, params_prob::NamedTuple, params::NamedTuple)
+    parmap, p0, ps = Dict(), [], eltype(params_sys)[]
+    parnames = keys(params_prob)
+    symbols  = Symbol.(params_sys)
     for name in parnames
         idx = argmax(symbols .== name)
-        push!(ps_, p[name])
-        push!(parmap, ps[idx] => p[name])
+        push!(p0, params_prob[name])
+        push!(parmap, params_sys[idx] => params_prob[name])
+        if name in keys(params)
+            push!(ps, params_sys[idx])
+        end
     end
-
-    return parmap, ps_
+    return parmap, p0, ps
 end
 
-function get_parmap(ps::AbstractArray, p::Tuple)
-    parmap, ps_ = Dict(), []
-    for (i, par) in enumerate(ps)
-        push!(ps_, p[i])
-        push!(parmap, par => p[i])
+function get_parmap(params_sys::AbstractArray, params_prob::Tuple, idxs::AbstractArray{Int})
+    parmap, p0, ps = Dict(), [], eltype(params_sys)[]
+    for (i, par) in enumerate(params_sys)
+        push!(p0, params_prob[i])
+        push!(parmap, par => params_prob[i])
+        if i in idxs
+            push!(ps, par)
+        end
     end
-    return parmap, ps_
+    return parmap, p0, ps
 end
 
-function get_parmap(ps::AbstractArray, p::Dict)
-    return get_parmap(ps, Tuple(values(p)))
+function get_parmap(params_sys::AbstractArray, params_prob::Dict, keys_ps::AbstractArray)
+    idxs = [i for (i, parname) in enumerate(keys(params_prob)) if parname in keys_ps]
+    return get_parmap(params_sys, Tuple(values(params_prob)), idxs)
 end
 
-function get_parmap(ps::AbstractArray, p::AbstractArray)
-    return p, p
+function get_parmap(params_sys::AbstractArray, params_prob::AbstractArray, idxs::AbstractArray{Int})
+    return params_prob, params_prob, params_sys[idxs]
 end
 
 function ExperimentalDesign(sys::ODESystem, time_grid = [ModelingToolkit.get_tspan(sys)]; kwargs...)
@@ -114,20 +158,27 @@ Base.summary(io::IO, oed::ExperimentalDesign) = summary(io, oed.sys)
 Base.print(io::IO, oed::ExperimentalDesign) = print(io, oed.sys)
 
 
-function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys), ps=nothing, kwargs...)
+function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys), ps = nothing,
+    observed = nothing, kwargs...)
     ## Get the eqs and the corresponding gradients
     simplified_sys = structural_simplify(sys)
 
-    observed = ModelingToolkit.get_observed(sys)
+    _observed = ModelingToolkit.get_observed(sys)
     t = ModelingToolkit.get_iv(sys)
-    if isempty(observed)
-        observed_rhs = states(simplified_sys)
-        @variables y(t)[1:length(observed_rhs)] [description = "Observed states"]
-        y = collect(y)
-        observed_lhs = y
+
+    if isempty(_observed)
+        if isnothing(observed)
+            observed_rhs = states(simplified_sys)
+            @variables y(t)[1:length(observed_rhs)] [description = "Observed states"]
+            y = collect(y)
+            observed_lhs = y
+        else
+            observed_rhs = observed.rhs
+            observed_lhs = observed.lhs
+        end
     else
-        observed_rhs = map(x->x.rhs, observed)
-        observed_lhs = map(x->x.lhs, observed)
+        observed_rhs = map(x->x.rhs, _observed)
+        observed_lhs = map(x->x.lhs, _observed)
     end
 
     eqs = map(x->x.rhs, equations(simplified_sys))
@@ -143,7 +194,7 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
     D = Differential(t)
     @variables (z(t))[1:length(observed_rhs)]=zeros(length(observed_rhs)) [description="Measurement State"]
     @parameters w[1:length(observed_rhs)]=ones(length(observed_rhs)) [description="Measurement function", tunable=true]
-    @variables (F(t))[1:Int(np*(np+1)/2)]=zeros(Float64, (np,np)) [description="Fisher Information Matrix"] # Symmetric -> avoid redundancies!
+    @variables (F(t))[1:Int(np*(np+1)/2)]=zeros(Float64, (np,np)) [description="Fisher Information Matrix"]
     @variables (G(t))[1:nx, 1:np]=zeros(Float64, (nx,np)) [description="Sensitivity State"]
     @variables Q(t)[1:length(observed_rhs), 1:np] [description="Unweighted Fisher Information Derivative"]
 

@@ -1,10 +1,11 @@
 function _symmetric_from_vector(x::AbstractArray{T}) where T
-    n = Int(sqrt(2 * length(x) + 0.25) - 0.5) # Find number n such that n*(n+1)/2 = length(x)
+    # Find number n such that n*(n+1)/2 = length(x)
+    n = Int(sqrt(2 * length(x) + 0.25) - 0.5)
     _symmetric_from_vector(x, n)
 end
 
 function _symmetric_from_vector(x::AbstractArray{T}, n::Int) where T
-    return Symmetric(T.([ i<=j ? x[Int(j*(j-1)/2+i)] : 0 for i=1:n, j=1:n]))
+    return Symmetric([ i<=j ? x[Int(j*(j-1)/2+i)] : zero(T) for i=1:n, j=1:n])
 end
 
 function apply_criterion(c, ed::ExperimentalDesign, x; kwargs...)
@@ -49,7 +50,6 @@ end
 struct ECriterion <: AbstractInformationCriterion end
 
 function (c::ECriterion)(F::AbstractArray{T, 2}, τ::T) where T
-    #maximum((abs ∘ inv).(eigvals(Symmetric(F_))))
     maximum(abs.(eigvals(inv(F+τ*I))))
 end
 
@@ -83,7 +83,6 @@ function switching_function(res::OEDSolution{FisherECriterion})
     return (sw, "v^T P(t) v")
 end
 
-
 function switching_function(res::OEDSolution{ACriterion})
     np  = sum(res.oed.w_indicator)
     sw = [tr.(C)/np for C in res.information_gain.global_information_gain]
@@ -116,6 +115,3 @@ end
 function _supported_criteria()
     return [FisherACriterion(), FisherDCriterion(), FisherECriterion(), ACriterion(), DCriterion(), ECriterion()]
 end
-
-# TODO'S:
-# How to handle the regularization?
