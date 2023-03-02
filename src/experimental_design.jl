@@ -220,7 +220,7 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
             D.(z) .~ w
         ], tspan = tspan, observed = observed_eqs
     )
-    return structural_simplify(oed_system), F, G, z, Q, observed
+    return structural_simplify(oed_system), F, G, z, Q, observed_eqs
 end
 
 # General predict
