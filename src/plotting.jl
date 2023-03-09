@@ -1,67 +1,3 @@
-function plotOED(res::OEDSolution; idxs=states(res.oed.sys_original), f = Figure())
-    tspan       = (first(res.sol).t[1], last(res.sol).t[end])
-    Δt          = -(reverse(tspan)...)/length(res.sol)
-    tControl    = first(tspan):Δt:last(tspan)
-    n_vars      = sum(res.oed.w_indicator)
-    t           = res.information_gain.t
-    gain        = [tr.(gain_)/n_vars for gain_ in res.information_gain.global_information_gain]
-
-    plot_multiplier = !isnothing(res.multiplier) && res.criterion in _supported_criteria()
-
-    # Plot states
-    t   = vcat([s.t[1:end-1] for s in res.sol]...)
-    t   = [t; [last(res.sol).t[end]]]
-    sol = vcat([s[idxs][1:end-1] for s in res.sol]...)
-    sol = hcat([sol; [last(res.sol)[idxs][end]]]...)
-    labels = collect(idxs .|> string)
-
-    ax0 = Axis(f[1,1:n_vars], title="Differential states", xlabel="Time")
-    for (i, row) in enumerate(eachrow(sol))
-        lines!(ax0, t, row, label=labels[i])
-    end
-    f[1, n_vars+1] = Legend(f, ax0)
-
-    # Plot sensitivities
-    labelsG = collect(vec(res.oed.variables.G)) .|> string .|> remove_excess_parentheses_and_whitespace
-    ax21 = Axis(f[2,1:n_vars], title="Sensitivities", xlabel="Time")
-    foreach(enumerate(eachrow(res.information_gain.sensitivities))) do (i,g)
-        lines!(ax21, t, g, label=labelsG[i])
-    end
-    f[2, n_vars+1] = Legend(f, ax21, nbanks=size(res.oed.variables.G,1))
-
-    # Plot conditions for measuring or not depending on the used criterion
-    H_w =  plot_multiplier ?  switching_function(res) : (gain, "trace Π(t)")
-    label_criterion = last(H_w)
-    axs = []
-    for (i, g_) in enumerate(first(H_w))
-        ax1 = Axis(f[3,i], title="Sampling w$i(t)", xlabel="Time")
-        ax2 = Axis(f[3,i], yticklabelcolor=:red, yaxisposition=:right)
-
-        p1 = stairs!(ax1, tControl, [res.w.w[i,1]; res.w.w[i,:]], color=:black, stairs=:pre, label="w(t)")
-        p2 = lines!(ax2, t, g_, color=:red, label=label_criterion)
-        if plot_multiplier
-            p3 = hlines!(ax2, res.multiplier[i], color=:red, linestyle=:dash, label="μ")
-        end
-
-        if i == n_vars
-            ps = plot_multiplier ? [p1, p2, p3] : [p1, p2]
-            ls = plot_multiplier ? ["w(t)", label_criterion, "μ"] : ["w(t)", label_criterion]
-            f[3, n_vars+1] = Legend(f, ps, ls)
-        end
-        push!(axs, ax2)
-        ax2.yaxisposition       = :right
-        ax2.yticklabelalign     = (:left, :center)
-        ax2.xticklabelsvisible  = false
-        ax2.ygridstyle          = :dash
-        ax2.ygridcolor          = :grey
-        ax2.xticklabelsvisible  = false
-        ax2.xlabelvisible       = false
-    end
-    linkyaxes!(axs...)
-
-    f
-end
-
 function remove_excess_parentheses_and_whitespace(str::String)
     idx1 = first(findfirst("(", str))
     idx1 == first(findlast("(", str)) && return str # only remove outermost set of parentheses
@@ -69,4 +5,164 @@ function remove_excess_parentheses_and_whitespace(str::String)
 
     str = str[[i for i=1:length(str) if i != idx1 && i != idx2]]
     filter(x -> !isspace(x), str)
+end
+
+
+function plot_ode_sol!(f::Figure, res::OEDSolution; kwargs...)
+
+    first_plot = isempty(contents(f.layout))
+    current_layout = f.layout.size
+    idx = first_plot ? 1 : current_layout[1] + 1
+
+    ax = Axis(f[idx,1], title="State Trajectory", xlabel="t")
+    idxs = states(res.oed.sys_original)
+    xt = map(enumerate(res.sol)) do (i,sol)
+        i < length(res.sol) ? (sol.t[1:end-1], reduce(hcat, sol[idxs][1:end-1])) : (sol.t, reduce(hcat, sol[idxs]))
+    end
+    t = reduce(vcat, first.(xt))
+    x = reduce(hcat, last.(xt))
+    foreach(enumerate(eachrow(x))) do (i,xi)
+        lines!(ax, t, xi, cycle = [:color], label = string.(idxs[i]); kwargs...)
+    end
+    leg = Legend(f[idx,2], ax)
+    nothing
+end
+
+function plot_sensitivities!(f::Figure, res::OEDSolution; kwargs...)
+
+    first_plot = isempty(contents(f.layout))
+    current_layout = f.layout.size
+    idx = first_plot ? 1 : current_layout[1] + 1
+
+    ax = Axis(f[idx,1], title="Sensitivity", xlabel="t")
+    t = reduce(vcat, map(enumerate(res.sol)) do (i,sol)
+        i < length(res.sol) ? sol.t[1:end-1] : sol.t
+    end)
+
+    labels = string.(vec(res.oed.variables.G)) .|> remove_excess_parentheses_and_whitespace
+    foreach(enumerate(eachrow(res.information_gain.sensitivities))) do (i, g)
+        lines!(ax, t, g, label = labels[i]; kwargs...)
+    end
+    leg = Legend(f[idx,2], ax, nbanks = maximum([length(res.oed.variables.G) ÷ 6, 1]))
+    nothing
+end
+
+function plot_observed!(f::Figure, res::OEDSolution; kwargs...)
+
+    first_plot = isempty(contents(f.layout))
+    current_layout = f.layout.size
+    idx = first_plot ? 1 : current_layout[1] + 1
+
+    ax = Axis(f[idx,1], title="Observed", xlabel="t")
+    h = res.oed.variables.h
+    xt = map(enumerate(res.sol)) do (i,sol)
+        i < length(res.sol) ? (sol.t[1:end-1], reduce(hcat, sol[h][1:end-1])) :
+                              (sol.t, reduce(hcat, sol[h]))
+    end
+    t = reduce(vcat, first.(xt))
+    obs = reduce(hcat, last.(xt))
+
+    labels_observed = collect(h) .|> string .|> remove_excess_parentheses_and_whitespace
+    for (i, row) in enumerate(eachrow(obs))
+        lines!(ax, t, row, label=labels_observed[i]; kwargs...)
+    end
+    leg = Legend(f[idx,2], ax, nbanks = maximum([length(res.oed.variables.G) ÷ 6, 1]))
+
+    nothing
+end
+
+function plot_sampling!(f::Figure, res::OEDSolution; kwargs...)
+
+    first_plot = isempty(contents(f.layout))
+    current_layout = f.layout.size
+    idx = first_plot ? 1 : current_layout[1] + 1
+
+    ax = Axis(f[idx,1], title="Sampling", xlabel="t")
+    tspan       = (first(res.sol).t[1], last(res.sol).t[end])
+    Δt          = -(reverse(tspan)...)/length(res.sol)
+    tControl    = first(tspan):Δt:last(tspan)
+
+    for (i,w) in enumerate(eachrow(res.w.w))
+        stairs!(ax, tControl, [w[1]; w], label="w$i(t)", stairs=:pre; kwargs...)
+    end
+    leg = Legend(f[idx,2], ax, nbanks = maximum([length(res.oed.variables.G) ÷ 6, 1]))
+
+    nothing
+end
+
+function plot_sampling_and_opt_crit!(f::Figure, res::OEDSolution; kwargs...)
+
+    first_plot = isempty(contents(f.layout))
+    current_layout = f.layout.size
+    idx = first_plot ? 1 : current_layout[1] + 1
+
+    # Generate a plot for each measurement
+    idxs        = sort(string.(parameters(res.oed.sys))[end-size(res.w.w, 1)+1:end])
+    tspan       = (first(res.sol).t[1], last(res.sol).t[end])
+    Δt          = -(reverse(tspan)...)/length(res.sol)
+    tControl    = first(tspan):Δt:last(tspan)
+    t           = reduce(vcat, map(enumerate(res.sol)) do (i,sol)
+        i < length(res.sol) ? sol.t[1:end-1] : sol.t
+    end)
+    opt_crit, label_criterion     = switching_function(res)
+    n_vars = sum(res.oed.w_indicator)
+
+    # Check the grid layout in advance
+    n_rows = max(ceil(Int, size(res.w.w,1) / 2), 1)
+    n_cols = max(ceil(Int, size(res.w.w,1) / n_rows), 1)
+    current_idx = 1
+
+    for i in 1:n_rows
+        if i==1
+            title_axis = Axis(f[idx,1], title="Sampling")
+            hidedecorations!(title_axis)
+            hidespines!(title_axis)
+        end
+        yaxs = []
+        for j in 1:n_cols
+            current_idx > size(res.w.w,1) && break
+
+            ax_1 = Axis(f[idx,1][i,j], xlabel = "t", subtitle = idxs[current_idx])
+            ax_2 = Axis(f[idx,1][i,j], yticklabelcolor=:red, yaxisposition=:right, yminorgridvisible = false, ygridvisible = false)
+
+            p1 = stairs!(ax_1, tControl, [res.w.w[current_idx,1];res.w.w[current_idx,:]], label = idxs[current_idx], color = :black, stairs = :pre)
+            p2 = lines!(ax_2, t, opt_crit[current_idx], color = :red, grid = false)
+            p3 = hlines!(ax_2, res.multiplier[current_idx], color=:red, linestyle=:dash)
+
+            linkxaxes!(ax_1, ax_2)
+            push!(yaxs, ax_2)
+            ax_2.yaxisposition = :right
+            ax_2.yticklabelalign = (:left, :center)
+            ax_2.xticklabelsvisible = false
+            ax_2.xlabelvisible = false
+            current_idx += 1
+            j == 1 && current_idx <= size(res.w.w,1) && hideydecorations!(ax_2)
+            ylims!(ax_1, -.05, 1.05)
+            j == 2 && hideydecorations!(ax_1)
+
+
+            if current_idx == n_vars
+                ps = [p1, p2, p3]
+                ls = ["w(t)", label_criterion, "μ"]
+                leg = Legend(f[idx,2], ps, ls)
+            end
+
+        end
+        linkyaxes!(yaxs...)
+    end
+
+    !first_plot && rowsize!(f.layout, idx, Relative(n_rows/(n_rows+current_layout[1])))
+    nothing
+end
+
+function plotOED(res::OEDSolution; f = Figure(resolution=(1200,1200)), observed::Bool=true,
+                sensitivities::Bool=true, opt_crit::Bool=false, kwargs...)
+
+    plot_ode_sol!(f, res; kwargs...)
+    observed && plot_observed!(f, res; kwargs...)
+    sensitivities && plot_sensitivities!(f, res; kwargs...)
+    (!opt_crit || (opt_crit && isnothing(res.multiplier))) && plot_sampling!(f, res; kwargs...)
+    opt_crit && !isnothing(res.multiplier) && plot_sampling_and_opt_crit!(f, res)
+    trim!(f.layout)
+    f
 end

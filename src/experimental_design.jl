@@ -71,7 +71,7 @@ function ExperimentalDesign(prob::ODEProblem, Δt; params=nothing, observed=noth
         end
     end
 
-    oed_sys, F, G, z, Q, observed = build_oed_system(sys; tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
+    oed_sys, F, G, z, h, hxG, observed = build_oed_system(sys; tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
     varmap = Dict(states(sys) .=> prob.u0)
     oed_prob = ODEProblem(oed_sys, varmap, prob.tspan, parmap)
     ps_old = parameters(sys)
@@ -81,7 +81,7 @@ function ExperimentalDesign(prob::ODEProblem, Δt; params=nothing, observed=noth
     p0_new = Symbolics.getdefaultval.(ps_new[w_idx])
     p0 = eltype(p0_new).([p0_old; p0_new])
     return ExperimentalDesign{typeof(oed_sys), typeof(oed_prob), typeof(tgrid), typeof(p0), typeof(observed)}(oed_sys, oed_prob, w, tgrid, p0,
-        (; F = F, G = G, z = z, Q = Q), sys, observed
+        (; F = F, G = G, z = z, h = h, hxG = hxG), sys, observed
     )
 end
 
@@ -123,7 +123,7 @@ function get_parmap(params_sys::AbstractArray, params_prob::AbstractArray, idxs:
 end
 
 function ExperimentalDesign(sys::ODESystem, time_grid = [ModelingToolkit.get_tspan(sys)]; kwargs...)
-    oed_sys, F, G, z, Q, observed = build_oed_system(sys; tspan = first(time_grid), kwargs...)
+    oed_sys, F, G, z, h, hxG, observed = build_oed_system(sys; tspan = first(time_grid), kwargs...)
     oed_prob = ODEProblem(oed_sys)
     ps_old = parameters(sys)
     ps_new = parameters(oed_sys)
@@ -131,7 +131,7 @@ function ExperimentalDesign(sys::ODESystem, time_grid = [ModelingToolkit.get_tsp
     w = BitVector(Tuple(i ∈ w_idx ? true : false for i in 1:length(ps_new)))
     p0 = Symbolics.getdefaultval.(ps_new)
     return ExperimentalDesign{typeof(oed_sys), typeof(oed_prob), typeof(time_grid), typeof(p0), typeof(observed)}(oed_sys, oed_prob, w, time_grid, p0,
-        (; F = F, G = G, z = z, Q = Q), sys, observed
+        (; F = F, G = G, z = z, h = h, hxG = hxG), sys, observed
     )
 end
 
@@ -220,7 +220,7 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
             D.(z) .~ w
         ], tspan = tspan, observed = observed_eqs
     )
-    return structural_simplify(oed_system), F, G, z, Q, observed_eqs
+    return structural_simplify(oed_system), F, G, z, observed_lhs, Q, observed_eqs
 end
 
 # General predict
@@ -254,13 +254,13 @@ end
 
 function compute_local_information_gain(oed::ExperimentalDesign, x::NamedTuple, kwargs...)
     w, τ = x.w, x.τ
-    Q = oed.variables.Q
-    n_vars = size(Q,1)
+    hxG = oed.variables.hxG
+    n_vars = size(hxG,1)
     sol = oed(w; kwargs...)
     t = [d.t[i] for d in sol for i=1:length(d)-1]
     t = [t; last(ModelingToolkit.get_tspan(oed.sys_original))]
     Qs = reduce(vcat, map(enumerate(sol)) do (i,s)
-        i < length(sol) ? s(s.t)[Q][1:end-1] : s(s.t)[Q]
+        i < length(sol) ? s(s.t)[hxG][1:end-1] : s(s.t)[hxG]
     end)
 
     Pi = map(1:size(w, 1)) do i
