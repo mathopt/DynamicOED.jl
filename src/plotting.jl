@@ -15,14 +15,13 @@ function plot_ode_sol!(f::Figure, res::OEDSolution; kwargs...)
     idx = first_plot ? 1 : current_layout[1] + 1
 
     ax = Axis(f[idx,1], title="State Trajectory", xlabel="t")
-    idxs = states(res.oed.sys_original)
-    xt = map(enumerate(res.sol)) do (i,sol)
-        i < length(res.sol) ? (sol.t[1:end-1], reduce(hcat, sol[idxs][1:end-1])) : (sol.t, reduce(hcat, sol[idxs]))
-    end
-    t = reduce(vcat, first.(xt))
-    x = reduce(hcat, last.(xt))
+    idxs = states(structural_simplify(res.oed.sys_original))
+    x = reduce(hcat, map(enumerate(res.sol)) do (i,sol)
+        i < length(res.sol) ? reduce(hcat, sol[idxs][1:end-1]) : reduce(hcat, sol[idxs])
+    end)
+
     foreach(enumerate(eachrow(x))) do (i,xi)
-        lines!(ax, t, xi, cycle = [:color], label = string.(idxs[i]); kwargs...)
+        lines!(ax, res.t, xi, cycle = [:color], label = string.(idxs[i]); kwargs...)
     end
     leg = Legend(f[idx,2], ax)
     nothing
@@ -35,13 +34,10 @@ function plot_sensitivities!(f::Figure, res::OEDSolution; kwargs...)
     idx = first_plot ? 1 : current_layout[1] + 1
 
     ax = Axis(f[idx,1], title="Sensitivity", xlabel="t")
-    t = reduce(vcat, map(enumerate(res.sol)) do (i,sol)
-        i < length(res.sol) ? sol.t[1:end-1] : sol.t
-    end)
 
     labels = string.(vec(res.oed.variables.G)) .|> remove_excess_parentheses_and_whitespace
-    foreach(enumerate(eachrow(res.information_gain.sensitivities))) do (i, g)
-        lines!(ax, t, g, label = labels[i]; kwargs...)
+    foreach(enumerate(eachrow(res.sensitivities))) do (i, g)
+        lines!(ax, res.t, g, label = labels[i]; kwargs...)
     end
     leg = Legend(f[idx,2], ax, nbanks = maximum([length(res.oed.variables.G) ÷ 6, 1]))
     nothing
@@ -55,16 +51,13 @@ function plot_observed!(f::Figure, res::OEDSolution; kwargs...)
 
     ax = Axis(f[idx,1], title="Observed", xlabel="t")
     h = res.oed.variables.h
-    xt = map(enumerate(res.sol)) do (i,sol)
-        i < length(res.sol) ? (sol.t[1:end-1], reduce(hcat, sol[h][1:end-1])) :
-                              (sol.t, reduce(hcat, sol[h]))
-    end
-    t = reduce(vcat, first.(xt))
-    obs = reduce(hcat, last.(xt))
+    obs = reduce(hcat, map(enumerate(res.sol)) do (i,sol)
+        i < length(res.sol) ? reduce(hcat, sol[h][1:end-1]) : reduce(hcat, sol[h])
+    end)
 
     labels_observed = collect(h) .|> string .|> remove_excess_parentheses_and_whitespace
-    for (i, row) in enumerate(eachrow(obs))
-        lines!(ax, t, row, label=labels_observed[i]; kwargs...)
+    foreach(enumerate(eachrow(obs))) do (i, row)
+        lines!(ax, res.t, row, label=labels_observed[i]; kwargs...)
     end
     leg = Legend(f[idx,2], ax, nbanks = maximum([length(res.oed.variables.G) ÷ 6, 1]))
 
@@ -82,7 +75,7 @@ function plot_sampling!(f::Figure, res::OEDSolution; kwargs...)
     Δt          = -(reverse(tspan)...)/length(res.sol)
     tControl    = first(tspan):Δt:last(tspan)
 
-    for (i,w) in enumerate(eachrow(res.w.w))
+    foreach(enumerate(eachrow(res.w.w))) do (i,w)
         stairs!(ax, tControl, [w[1]; w], label="w$i(t)", stairs=:pre; kwargs...)
     end
     leg = Legend(f[idx,2], ax, nbanks = maximum([length(res.oed.variables.G) ÷ 6, 1]))
@@ -101,9 +94,7 @@ function plot_sampling_and_opt_crit!(f::Figure, res::OEDSolution; kwargs...)
     tspan       = (first(res.sol).t[1], last(res.sol).t[end])
     Δt          = -(reverse(tspan)...)/length(res.sol)
     tControl    = first(tspan):Δt:last(tspan)
-    t           = reduce(vcat, map(enumerate(res.sol)) do (i,sol)
-        i < length(res.sol) ? sol.t[1:end-1] : sol.t
-    end)
+
     opt_crit, label_criterion     = switching_function(res)
     n_vars = sum(res.oed.w_indicator)
 
@@ -126,7 +117,7 @@ function plot_sampling_and_opt_crit!(f::Figure, res::OEDSolution; kwargs...)
             ax_2 = Axis(f[idx,1][i,j], yticklabelcolor=:red, yaxisposition=:right, yminorgridvisible = false, ygridvisible = false)
 
             p1 = stairs!(ax_1, tControl, [res.w.w[current_idx,1];res.w.w[current_idx,:]], label = idxs[current_idx], color = :black, stairs = :pre)
-            p2 = lines!(ax_2, t, opt_crit[current_idx], color = :red, grid = false)
+            p2 = lines!(ax_2, res.t, opt_crit[current_idx], color = :red, grid = false)
             p3 = hlines!(ax_2, res.multiplier[current_idx], color=:red, linestyle=:dash)
 
             linkxaxes!(ax_1, ax_2)
@@ -155,6 +146,19 @@ function plot_sampling_and_opt_crit!(f::Figure, res::OEDSolution; kwargs...)
     nothing
 end
 
+"""
+$(SIGNATURES)
+
+Plots the results from the `OEDProblem`, e.g., differential states, sampling function, etc. in
+a `Makie.Figure`, which can be provided via `f`.
+
+If `observed` is set to `true`, the observed variables defined in the underlying `ODESystem` are plotted.
+
+If `sensitivities` is set to `true`, the sensitivities are plotted.
+
+If `opt_crit` is set to `true`, the sufficient conditions for whether the sampling is on are plotted.
+These are depending on the criterion and the Lagrange multiplier of the measurement constraint.
+"""
 function plotOED(res::OEDSolution; f = Figure(resolution=(1200,1200)), observed::Bool=true,
                 sensitivities::Bool=true, opt_crit::Bool=false, kwargs...)
 

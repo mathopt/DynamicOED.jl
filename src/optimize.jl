@@ -1,50 +1,60 @@
 """
 $(TYPEDEF)
 
-A container for the solution of an OED problem.
+The solution to an optimal experimental design problem for a certain criterion.
+The sampling decisions can be retrieved from `w`.
 
 # Fields
 $(FIELDS)
 """
-struct OEDSolution{C,P,Q,R,S,T} <: AbstractOEDSolution
+struct OEDSolution{C,P,Q,T,GI,S,M,O} <: AbstractOEDSolution
     "Criterion"
     criterion::C
     "The solution of the system of ODEs."
     sol::P
     "Optimal sampling solution"
     w::Q
-    "Information gain matrices and sensitivities"
-    information_gain::R
+    "Time grids"
+    t::T
+    "Information gain matrices"
+    information_gain::GI
+    "Sensitivities"
+    sensitivities::S
     "Lagrange multipliers corresponding to sampling constraint"
-    multiplier::S
+    multiplier::M
     "Objective"
-    obj::T
+    obj::O
     "Experimental design"
     oed::AbstractExperimentalDesign
 end
 
 function OEDSolution(oed, criterion, w, obj; μ=nothing, kwargs...)
     P, t, sol   = compute_local_information_gain(oed, w);
-    Π, _, _     = compute_global_information_gain(oed, w);
+    Π, _, _     = compute_global_information_gain(oed, w, local_information_gain=(P,t,sol));
     G           = extract_sensitivities(oed, sol)
 
-    information_gain = (t=t, local_information_gain = P, global_information_gain=Π,
-                        sensitivities = G)
+    information_gain = (local_information_gain = P, global_information_gain=Π,)
 
-    return OEDSolution{typeof(criterion), typeof(sol), typeof(w), typeof(information_gain), typeof(μ), typeof(obj)}(
-        criterion, sol, w, information_gain, μ, obj, oed
+    return OEDSolution{typeof(criterion), typeof(sol), typeof(w), typeof(t), typeof(information_gain), typeof(G), typeof(μ), typeof(obj)}(
+        criterion, sol, w, t, information_gain, G, μ, obj, oed
     )
 end
 
-# TODO: HOW TO DISPATCH ON SOLVERS? THEY ARE NOT KNOWN HERE!
-function get_lagrange_multiplier(res)
-    try
-        return res.problem.mult_g
-    catch e
-        return nothing
-    end
-end
+"""
+$(SIGNATURES)
 
+Solves an optimal experimental design problem which is defined through the `ExperimentalDesign`.
+
+The upper bound on the measurements is given by `M` which may be a single upper bound for all
+observed quantities or a vector of upper bounds.
+
+Initial values for the sampling decisions can be passed through `w_init`, which is expected
+to be of size `(n_vars,n_exp)` where `n_vars` is the number of measurement functions and `n_exp` is
+the number of intervals from the discretization of the `ExperimentalDesign`.
+
+If `integer` is set to `true`, the variables representing the sampling decisions
+are treated as integer variables.
+"""
 function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector{<:Real}},
     criterion::AbstractInformationCriterion, solver, options; integer = false, ad_backend = AD.ForwardDiffBackend(),
     w_init = nothing, kwargs...)
@@ -109,4 +119,13 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector
     multiplier = get_lagrange_multiplier(res)
 
     return OEDSolution(ed, criterion, res.minimizer, res.minimum, μ=multiplier, kwargs...)
+end
+
+
+function get_lagrange_multiplier(res)
+    try
+        return res.problem.mult_g
+    catch e
+        return nothing
+    end
 end

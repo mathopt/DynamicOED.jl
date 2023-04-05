@@ -33,10 +33,20 @@ end
 """
 $(SIGNATURES)
 
-Constructs an `ExperimentalDesign` from given `ODEProblem`
-- prob is the ODEProblem. The problems' parameters may be of type NamedTuple, Dict, Tuple or simply an Array.
-- Δt is the discretization for the measurement function.
-- params is an optional parameter to identify a subset of tunable parameters of the system of ODEs. This can be either a NamedTuple in case of a NamedTuple, an array containing a subset of keys of the Dict, or simply an array of indices of the tunable parameters.
+Constructs an `ExperimentalDesign` from a given `ODEProblem`
+
+Supported types for the parameters used in the `ODEProblem` are currently:
+    - `NamedTuple`
+    - `Dict`
+    - `Tuple`
+    - `AbstractArray`
+
+The optional parameter `params` can be used to identify a subset of tunable parameters
+of the system. Depending on the type of the `ODEProblem`'s parameters, it can be:
+    - a `NamedTuple`,
+    - an array containing a subset of keys of the `Dict`,
+    - or an array of indices of the tunable parameters for `Tuple` and `AbstractArray`.
+
 """
 function ExperimentalDesign(prob::ODEProblem, Δt; params=nothing, observed=nothing, kwargs...)
     tgrid = get_tgrid(Δt, prob.tspan)
@@ -86,6 +96,12 @@ function ExperimentalDesign(prob::ODEProblem, Δt; params=nothing, observed=noth
 end
 
 
+"""
+$(SIGNATURES)
+
+Transfer initial values for the parameters from the user-supplied `ODEProblem` to the newly
+created `ODESystem`.
+"""
 function get_parmap(params_sys::AbstractArray, params_prob::NamedTuple, params::NamedTuple)
     parmap, p0, ps = Dict(), [], eltype(params_sys)[]
     parnames = keys(params_prob)
@@ -122,6 +138,14 @@ function get_parmap(params_sys::AbstractArray, params_prob::AbstractArray, idxs:
     return params_prob, params_prob, params_sys[idxs]
 end
 
+"""
+$(SIGNATURES)
+
+Constructs an `ExperimentalDesign` from a given `ModelingToolkit.ODESystem`.
+
+The parameter `time_grid` is a vector of tuples of timepoints, representing the intervals for
+discretization of the problem.
+"""
 function ExperimentalDesign(sys::ODESystem, time_grid = [ModelingToolkit.get_tspan(sys)]; kwargs...)
     oed_sys, F, G, z, h, hxG, observed = build_oed_system(sys; tspan = first(time_grid), kwargs...)
     oed_prob = ODEProblem(oed_sys)
@@ -147,17 +171,34 @@ function ExperimentalDesign(sys::ODESystem, Δt::Real; tspan = ModelingToolkit.g
     )
 end
 
+"""
+$(SIGNATURES)
+Constructs a vector of time grids from a timespan and a stepsize.
+"""
 function get_tgrid(Δt::Real, tspan::Tuple{Real, Real})
+    @assert Δt < -(reverse(tspan)...) "Stepsize must be smaller than total time interval."
     first_ts = first(tspan):Δt:(last(tspan)-Δt)
     last_ts = (first(tspan)+Δt):Δt:last(tspan)
-    collect(zip(first_ts, last_ts))
+    tgrid = collect(zip(first_ts, last_ts))
+    if !isapprox(last(last(tgrid)),last(tspan))
+        push!(tgrid, (last(last(tgrid)), last(tspan)))
+    end
+    tgrid
 end
 
 Base.show(io::IO, oed::ExperimentalDesign) = show(io, oed.sys)
 Base.summary(io::IO, oed::ExperimentalDesign) = summary(io, oed.sys)
 Base.print(io::IO, oed::ExperimentalDesign) = print(io, oed.sys)
 
+"""
+$(SIGNATURES)
 
+Constructs the system of ordinary differential equations for the optimal experimental design
+problem from a `ModelingToolkit.AbstractODESystem`.
+
+Especially, the variables and differential equations for sensitivities and the Fisher
+information matrix (FIM) are added to the system.
+"""
 function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys), ps = nothing,
     observed = nothing, kwargs...)
     ## Get the eqs and the corresponding gradients
@@ -241,7 +282,11 @@ function (oed::ExperimentalDesign)(w::AbstractArray; alg = Tsit5(), kwargs...)
     end
 end
 
+"""
+$(SIGNATURES)
 
+Extracts sensitivities from solutions on all intervals.
+"""
 function extract_sensitivities(oed::ExperimentalDesign, sol::AbstractArray)
     G_ = oed.variables.G
     G = vcat(map(enumerate(sol)) do (i,d)
@@ -252,6 +297,12 @@ function extract_sensitivities(oed::ExperimentalDesign, sol::AbstractArray)
     hcat([g[:] for g in G]...)
 end
 
+"""
+$(SIGNATURES)
+
+Returns the local information gain, the stacked vector of solution timesteps and the vector
+containing an `ODESolution` for each discretization interval for iterate `x`.
+"""
 function compute_local_information_gain(oed::ExperimentalDesign, x::NamedTuple, kwargs...)
     w, τ = x.w, x.τ
     hxG = oed.variables.hxG
@@ -271,10 +322,16 @@ function compute_local_information_gain(oed::ExperimentalDesign, x::NamedTuple, 
     return Pi, t, sol
 end
 
-function compute_global_information_gain(oed::ExperimentalDesign, x::NamedTuple, kwargs...)
+"""
+$(SIGNATURES)
+
+Returns the global information gain, the stacked vector of solution timesteps and the vector
+containing an `ODESolution` for each discretization interval for iterate `x`.
+"""
+function compute_global_information_gain(oed::ExperimentalDesign, x::NamedTuple; local_information_gain = nothing, kwargs...)
     w, τ = x.w, x.τ
     F = oed.variables.F
-    P, t, sol = compute_local_information_gain(oed, x, kwargs...)
+    P, t, sol = isnothing(local_information_gain) ? compute_local_information_gain(oed, x, kwargs...) : local_information_gain
     F_ = _symmetric_from_vector(last(last(sol)[F]))
     F_inv = det(F_) > 1e-05 ? inv(F_) : nothing
     while isnothing(F_inv)
