@@ -29,8 +29,8 @@ struct OEDSolution{C,P,Q,T,GI,S,M,O} <: AbstractOEDSolution
 end
 
 function OEDSolution(oed, criterion, w, obj; μ=nothing, kwargs...)
-    P, t, sol   = compute_local_information_gain(oed, w);
-    Π, _, _     = compute_global_information_gain(oed, w, local_information_gain=(P,t,sol));
+    P, t, sol   = compute_local_information_gain(oed, w; kwargs...);
+    Π, _, _     = compute_global_information_gain(oed, w; local_information_gain=(P,t,sol), kwargs...);
     G           = extract_sensitivities(oed, sol)
 
     information_gain = (local_information_gain = P, global_information_gain=Π,)
@@ -118,7 +118,7 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector
 
     multiplier = get_lagrange_multiplier(res)
 
-    return OEDSolution(ed, criterion, res.minimizer, res.minimum, μ=multiplier, kwargs...)
+    return OEDSolution(ed, criterion, res.minimizer, res.minimum; μ=multiplier, kwargs...)
 end
 
 

@@ -16,6 +16,8 @@ using SciMLSensitivity
 using Nonconvex
 using CairoMakie
 using Reexport
+
+using ArrayInterface
 @reexport using CairoMakie: save
 
 abstract type AbstractExperimentalDesign end
@@ -34,5 +36,8 @@ export ACriterion, DCriterion, ECriterion
 
 include("plotting.jl")
 export plotOED
+
+include("dae.jl")
+export modelingtoolkitize
 
 end # module DynamicOED

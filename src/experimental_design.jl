@@ -25,8 +25,8 @@ struct ExperimentalDesign{S, P, T, PS, O} <: AbstractExperimentalDesign
     observed::O
 end
 
-function ExperimentalDesign(prob::ODEProblem, n::Int; params=nothing, observed=nothing, kwargs...)
-    Δt = -(reverse(prob.tspan)...)/n
+function ExperimentalDesign(prob::Union{<:ODEProblem, <:DAEProblem}, n::Int; params=nothing, observed=nothing, kwargs...)
+    Δt = float(-(reverse(prob.tspan)...)/n)
     return ExperimentalDesign(prob, Δt, params=params, observed=observed; kwargs...)
 end
 
@@ -48,9 +48,9 @@ of the system. Depending on the type of the `ODEProblem`'s parameters, it can be
     - or an array of indices of the tunable parameters for `Tuple` and `AbstractArray`.
 
 """
-function ExperimentalDesign(prob::ODEProblem, Δt; params=nothing, observed=nothing, kwargs...)
+function ExperimentalDesign(prob::ODEProblem, Δt::AbstractFloat; params=nothing, observed=nothing, kwargs...)
     tgrid = get_tgrid(Δt, prob.tspan)
-    sys = modelingtoolkitize(prob)
+    sys = ModelingToolkit.modelingtoolkitize(prob)
     sub_params = begin
         if !isnothing(params)
             params
@@ -81,8 +81,12 @@ function ExperimentalDesign(prob::ODEProblem, Δt; params=nothing, observed=noth
         end
     end
 
-    oed_sys, F, G, z, h, hxG, observed = build_oed_system(sys; tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
+    oed_sys, F, G, z, h, hxG, observed, w = build_oed_system(sys; tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
     varmap = Dict(states(sys) .=> prob.u0)
+
+    param_permutation = find_permutation(parameters(sys), setdiff(parameters(oed_sys), w))
+    p0_old = param_permutation * p0_old
+
     oed_prob = ODEProblem(oed_sys, varmap, prob.tspan, parmap)
     ps_old = parameters(sys)
     ps_new = parameters(oed_sys)
@@ -95,6 +99,77 @@ function ExperimentalDesign(prob::ODEProblem, Δt; params=nothing, observed=noth
     )
 end
 
+function find_permutation(original_parameters, new_parameters)
+    np = length(original_parameters)
+    permmatrix = zeros(Int, np,np)
+    for (i,diffp) in enumerate(new_parameters)
+        for (j,orgp) in enumerate(original_parameters)
+            @info diffp orgp isequal(diffp, orgp)
+            if isequal(diffp, orgp)
+                permmatrix[i,j] = 1
+            end
+        end
+    end
+    return permmatrix
+end
+
+function ExperimentalDesign(prob::DAEProblem, Δt::AbstractFloat; params=nothing, observed=nothing, kwargs...)
+    tgrid = get_tgrid(Δt, prob.tspan)
+    sys = modelingtoolkitize(prob)
+    sub_params = begin
+        if !isnothing(params)
+            params
+        elseif typeof(prob.p) <: NamedTuple
+            prob.p
+        elseif typeof(prob.p) <: Dict
+            collect(keys(prob.p))
+        elseif typeof(prob.p) <: Tuple || typeof(prob.p) <: AbstractArray
+            collect(1:length(prob.p))
+        end
+    end
+
+    parmap, p0_old, ps = get_parmap(parameters(sys), prob.p, sub_params)
+
+    @info parmap, p0_old, ps
+    # Define observed in the states of the modelingtoolkitized system
+    t_ = ModelingToolkit.get_iv(sys)
+    p_ = parameters(sys)
+    s_ = states(sys)
+    observed_eqs, obs_ = begin
+        if !isnothing(observed)
+            obs_ = isnothing(observed) ? nothing : observed(prob.u0, prob.p, first(prob.tspan))
+            @variables y(t_)[1:length(obs_)]
+            y = collect(y)
+            observed_eqs = Equation(y, observed(s_, p_, t_))
+            observed_eqs, obs_
+        else
+            nothing, nothing
+        end
+    end
+
+    oed_sys, F, G, z, h, hxG, observed, w = build_oed_dae_system(sys; tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
+
+    D = Differential(ModelingToolkit.get_iv(oed_sys))
+
+    param_permutation = find_permutation(parameters(sys), setdiff(parameters(oed_sys), w))
+    p0_old = param_permutation * p0_old
+
+    varmap = Dict(states(sys) .=> prob.u0)
+    dvarmap = Dict(D.(states(sys)) .=> prob.du0)
+    added_dvarmap = Dict(D.(setdiff(states(oed_sys), states(sys))) .=> 0.0)
+    dvarmap = merge(dvarmap, added_dvarmap)
+    @info parmap parameters(oed_sys)
+    oed_prob = DAEProblem(oed_sys, dvarmap, varmap, prob.tspan, parmap)
+    ps_old = parameters(sys)
+    ps_new = parameters(oed_sys)
+    w_idx = length(ps_old)+1:length(ps_new)
+    w = BitVector(Tuple(i ∈ w_idx ? true : false for i in 1:length(ps_new)))
+    p0_new = Symbolics.getdefaultval.(ps_new[w_idx])
+    p0 = eltype(p0_new).([p0_old; p0_new])
+    return ExperimentalDesign{typeof(oed_sys), typeof(oed_prob), typeof(tgrid), typeof(p0), typeof(observed)}(oed_sys, oed_prob, w, tgrid, p0,
+        (; F = F, G = G, z = z, h = h, hxG = hxG), sys, observed
+    )
+end
 
 """
 $(SIGNATURES)
@@ -147,7 +222,7 @@ The parameter `time_grid` is a vector of tuples of timepoints, representing the 
 discretization of the problem.
 """
 function ExperimentalDesign(sys::ODESystem, time_grid = [ModelingToolkit.get_tspan(sys)]; kwargs...)
-    oed_sys, F, G, z, h, hxG, observed = build_oed_system(sys; tspan = first(time_grid), kwargs...)
+    oed_sys, F, G, z, h, hxG, observed, w = build_oed_system(sys; tspan = first(time_grid), kwargs...)
     oed_prob = ODEProblem(oed_sys)
     ps_old = parameters(sys)
     ps_new = parameters(oed_sys)
@@ -160,11 +235,11 @@ function ExperimentalDesign(sys::ODESystem, time_grid = [ModelingToolkit.get_tsp
 end
 
 function ExperimentalDesign(sys::ODESystem, n::Int; tspan = ModelingToolkit.get_tspan(sys), kwargs...)
-    Δt = -(reverse(tspan)...)/n
+    Δt = float(-(reverse(tspan)...)/n)
     ExperimentalDesign(sys, Δt; tspan = tspan, kwargs...)
 end
 
-function ExperimentalDesign(sys::ODESystem, Δt::Real; tspan = ModelingToolkit.get_tspan(sys), kwargs...)
+function ExperimentalDesign(sys::ODESystem, Δt::AbstractFloat; tspan = ModelingToolkit.get_tspan(sys), kwargs...)
     tgrid = get_tgrid(Δt, tspan)
     ExperimentalDesign(
         sys, tgrid; kwargs...
@@ -175,7 +250,7 @@ end
 $(SIGNATURES)
 Constructs a vector of time grids from a timespan and a stepsize.
 """
-function get_tgrid(Δt::Real, tspan::Tuple{Real, Real})
+function get_tgrid(Δt::AbstractFloat, tspan::Tuple{Real, Real})
     @assert Δt < -(reverse(tspan)...) "Stepsize must be smaller than total time interval."
     first_ts = first(tspan):Δt:(last(tspan)-Δt)
     last_ts = (first(tspan)+Δt):Δt:last(tspan)
@@ -261,7 +336,7 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
             D.(z) .~ w
         ], tspan = tspan, observed = observed_eqs
     )
-    return structural_simplify(oed_system), F, G, z, observed_lhs, Q, observed_eqs
+    return structural_simplify(oed_system), F, G, z, observed_lhs, Q, observed_eqs, w
 end
 
 # General predict
@@ -303,7 +378,7 @@ $(SIGNATURES)
 Returns the local information gain, the stacked vector of solution timesteps and the vector
 containing an `ODESolution` for each discretization interval for iterate `x`.
 """
-function compute_local_information_gain(oed::ExperimentalDesign, x::NamedTuple, kwargs...)
+function compute_local_information_gain(oed::ExperimentalDesign, x::NamedTuple; kwargs...)
     w, τ = x.w, x.τ
     hxG = oed.variables.hxG
     n_vars = size(hxG,1)

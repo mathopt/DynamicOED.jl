@@ -15,7 +15,7 @@ function plot_ode_sol!(f::Figure, res::OEDSolution; kwargs...)
     idx = first_plot ? 1 : current_layout[1] + 1
 
     ax = Axis(f[idx,1], title="State Trajectory", xlabel="t")
-    idxs = states(structural_simplify(res.oed.sys_original))
+    idxs = states(res.oed.sys_original)
     x = reduce(hcat, map(enumerate(res.sol)) do (i,sol)
         i < length(res.sol) ? reduce(hcat, sol[idxs][1:end-1]) : reduce(hcat, sol[idxs])
     end)
