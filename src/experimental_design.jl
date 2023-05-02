@@ -145,7 +145,7 @@ function ExperimentalDesign(prob::DAEProblem, Δt::AbstractFloat; params=nothing
         end
     end
 
-    oed_sys, F, G, z, h, hxG, observed, w = build_oed_dae_system(sys; tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
+    oed_sys, F, G, z, h, hxG, observed, w = build_oed_system(sys; tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
 
     D = Differential(ModelingToolkit.get_iv(oed_sys))
 
@@ -295,17 +295,21 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
         observed_lhs = map(x->x.lhs, _observed)
     end
 
-    eqs = map(x->x.rhs, equations(simplified_sys))
-    xs = states(simplified_sys)
-    ps = isnothing(ps) ? [p for p in parameters(simplified_sys) if istunable(p) && !isinput(p)] : ps
+    # Add new variables
+    t = ModelingToolkit.get_iv(sys)
+    D = Differential(t)
+
+    eqs = map(x-> x.rhs - x.lhs, equations(sys))
+    xs = states(sys)
+    dxs = D.(xs)
+    ps = isnothing(ps) ? [p for p in parameters(sys) if istunable(p) && !isinput(p)] : ps
+
     np, nx = length(ps), length(xs)
     fx = ModelingToolkit.jacobian(eqs, xs)
+    fxs = ModelingToolkit.jacobian(eqs, dxs)
     fp = ModelingToolkit.jacobian(eqs, ps)
     hx = ModelingToolkit.jacobian(observed_rhs, xs)
 
-    # Add new variables
-    t = ModelingToolkit.get_iv(simplified_sys)
-    D = Differential(t)
     @variables (z(t))[1:length(observed_rhs)]=zeros(length(observed_rhs)) [description="Measurement State"]
     @parameters w[1:length(observed_rhs)]=ones(length(observed_rhs)) [description="Measurement function", tunable=true]
     @variables (F(t))[1:Int(np*(np+1)/2)]=zeros(Float64, (np,np)) [description="Fisher Information Matrix"]
@@ -316,6 +320,7 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
     w = collect(w)
     G = collect(G)
     Q = collect(Q)
+    dG = collect(D.(G))
     hx = collect(hx)
     idxs = triu(ones(np,np)) .== 1.0
     df = sum(enumerate(w)) do (i, wi)
@@ -328,8 +333,8 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
     ]
 
     @named oed_system = ODESystem([
-            equations(sys);
-            vec(D.(G) .~ fx*G .+ fp);
+            vec(0 .~ eqs);
+            vec(0 .~ fxs*dG .+ fx*G  .+ fp);
             vec(D.(F) .~ collect(df));
             D.(z) .~ w
         ], tspan = tspan, observed = observed_eqs

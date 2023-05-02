@@ -1,6 +1,4 @@
 function modelingtoolkitize(prob::DAEProblem; kwargs...)
-
-
     prob.f isa DiffEqBase.AbstractParameterizedFunction && return prob.f.sys
     @parameters t
 
@@ -61,75 +59,4 @@ function modelingtoolkitize(prob::DAEProblem; kwargs...)
                 name = gensym(:MTKizedODE),
                 tspan = prob.tspan,
                 kwargs...)
-end
-
-
-function build_oed_dae_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys), ps = nothing,
-    observed = nothing, kwargs...)
-    ## Get the eqs and the corresponding gradients
-    simplified_sys = structural_simplify(sys)
-
-    _observed = ModelingToolkit.get_observed(sys)
-    t = ModelingToolkit.get_iv(sys)
-
-    if isempty(_observed)
-        if isnothing(observed)
-            observed_rhs = states(simplified_sys)
-            @variables y(t)[1:length(observed_rhs)] [description = "Observed states"]
-            y = collect(y)
-            observed_lhs = y
-        else
-            observed_rhs = observed.rhs
-            observed_lhs = observed.lhs
-        end
-    else
-        observed_rhs = map(x->x.rhs, _observed)
-        observed_lhs = map(x->x.lhs, _observed)
-    end
-
-    # Add new variables
-    t = ModelingToolkit.get_iv(sys)
-    D = Differential(t)
-
-    eqs = map(x-> x.rhs - x.lhs, equations(sys))
-    xs = states(sys)
-    dxs = D.(xs)
-    ps = isnothing(ps) ? [p for p in parameters(sys) if istunable(p) && !isinput(p)] : ps
-
-    np, nx = length(ps), length(xs)
-    fx = ModelingToolkit.jacobian(eqs, xs)
-    fxs = ModelingToolkit.jacobian(eqs, dxs)
-    fp = ModelingToolkit.jacobian(eqs, ps)
-    hx = ModelingToolkit.jacobian(observed_rhs, xs)
-
-    @variables (z(t))[1:length(observed_rhs)]=zeros(length(observed_rhs)) [description="Measurement State"]
-    @parameters w[1:length(observed_rhs)]=ones(length(observed_rhs)) [description="Measurement function", tunable=true]
-    @variables (F(t))[1:Int(np*(np+1)/2)]=zeros(Float64, (np,np)) [description="Fisher Information Matrix"]
-    @variables (G(t))[1:nx, 1:np]=zeros(Float64, (nx,np)) [description="Sensitivity State"]
-    @variables Q(t)[1:length(observed_rhs), 1:np] [description="Unweighted Fisher Information Derivative"]
-
-    # Build the new system of deqs
-    w = collect(w)
-    G = collect(G)
-    Q = collect(Q)
-    dG = collect(D.(G))
-    hx = collect(hx)
-    idxs = triu(ones(np,np)) .== 1.0
-    df = sum(enumerate(w)) do (i, wi)
-        wi*((hx[i:i, :]*G)'*(hx[i:i,:]*G))[idxs]
-    end
-
-    observed_eqs = Equation[
-        observed_lhs .~ observed_rhs;
-        vec(Q .~  hx*G)
-    ]
-
-    @named oed_system = ODESystem([
-            vec(0 .~ eqs);
-            vec(0 .~ fxs*dG .+ fx*G  .+ fp);
-            vec(D.(F) .~ collect(df));
-            D.(z) .~ w
-        ], tspan = tspan, observed = observed_eqs
-    )
-    return oed_system, F, G, z, observed_lhs, Q, observed_eqs, w
 end
