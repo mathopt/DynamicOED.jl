@@ -104,7 +104,6 @@ function find_permutation(original_parameters, new_parameters)
     permmatrix = zeros(Int, np,np)
     for (i,diffp) in enumerate(new_parameters)
         for (j,orgp) in enumerate(original_parameters)
-            @info diffp orgp isequal(diffp, orgp)
             if isequal(diffp, orgp)
                 permmatrix[i,j] = 1
             end
@@ -130,7 +129,6 @@ function ExperimentalDesign(prob::DAEProblem, Δt::AbstractFloat; params=nothing
 
     parmap, p0_old, ps = get_parmap(parameters(sys), prob.p, sub_params)
 
-    @info parmap, p0_old, ps
     # Define observed in the states of the modelingtoolkitized system
     t_ = ModelingToolkit.get_iv(sys)
     p_ = parameters(sys)
@@ -158,7 +156,7 @@ function ExperimentalDesign(prob::DAEProblem, Δt::AbstractFloat; params=nothing
     dvarmap = Dict(D.(states(sys)) .=> prob.du0)
     added_dvarmap = Dict(D.(setdiff(states(oed_sys), states(sys))) .=> 0.0)
     dvarmap = merge(dvarmap, added_dvarmap)
-    @info parmap parameters(oed_sys)
+
     oed_prob = DAEProblem(oed_sys, dvarmap, varmap, prob.tspan, parmap)
     ps_old = parameters(sys)
     ps_new = parameters(oed_sys)

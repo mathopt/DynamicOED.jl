@@ -18,7 +18,6 @@ function modelingtoolkitize(prob::DAEProblem; kwargs...)
         []
     end
 
-    @info params
     D = Differential(t)
     Dvars = D.(vars)
 
@@ -35,7 +34,6 @@ function modelingtoolkitize(prob::DAEProblem; kwargs...)
     else
         rhs = prob.f(Dvars, vars, params, t)
     end
-    @info rhs
 
     eqs = vcat([lhs[i] ~ rhs[i] for i in eachindex(prob.u0)]...)
     sts = vec(collect(vars))
@@ -58,8 +56,6 @@ function modelingtoolkitize(prob::DAEProblem; kwargs...)
         Dict()
     end
 
-    @info default_u0 default_p eqs params
-    @info "End modlingtoolkitize"
     return ODESystem(eqs, t, sts, params,
                 defaults = merge(default_u0, default_p);
                 name = gensym(:MTKizedODE),
@@ -99,15 +95,13 @@ function build_oed_dae_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(
     xs = states(sys)
     dxs = D.(xs)
     ps = isnothing(ps) ? [p for p in parameters(sys) if istunable(p) && !isinput(p)] : ps
-    @info "ps = $ps"
+
     np, nx = length(ps), length(xs)
     fx = ModelingToolkit.jacobian(eqs, xs)
     fxs = ModelingToolkit.jacobian(eqs, dxs)
     fp = ModelingToolkit.jacobian(eqs, ps)
     hx = ModelingToolkit.jacobian(observed_rhs, xs)
 
-
-    @info eqs fx fxs fp hx
     @variables (z(t))[1:length(observed_rhs)]=zeros(length(observed_rhs)) [description="Measurement State"]
     @parameters w[1:length(observed_rhs)]=ones(length(observed_rhs)) [description="Measurement function", tunable=true]
     @variables (F(t))[1:Int(np*(np+1)/2)]=zeros(Float64, (np,np)) [description="Fisher Information Matrix"]
@@ -129,7 +123,7 @@ function build_oed_dae_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(
         observed_lhs .~ observed_rhs;
         vec(Q .~  hx*G)
     ]
-    @info "End build_OED_DAE_System"
+
     @named oed_system = ODESystem([
             vec(0 .~ eqs);
             vec(0 .~ fxs*dG .+ fx*G  .+ fp);
@@ -137,7 +131,5 @@ function build_oed_dae_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(
             D.(z) .~ w
         ], tspan = tspan, observed = observed_eqs
     )
-
-    @info setdiff(parameters(oed_system), w)
     return oed_system, F, G, z, observed_lhs, Q, observed_eqs, w
 end
