@@ -56,7 +56,7 @@ If `integer` is set to `true`, the variables representing the sampling decisions
 are treated as integer variables.
 """
 function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector{<:Real}},
-    criterion::AbstractInformationCriterion, solver, options; integer = false, ad_backend = AD.ForwardDiffBackend(),
+    criterion::AbstractInformationCriterion; solver=IpoptAlg(), options=IpoptOptions(), integer = false, ad_backend = AbstractDifferentiation.ForwardDiffBackend(),
     w_init = nothing, kwargs...)
 
     # Define the loss and constraints

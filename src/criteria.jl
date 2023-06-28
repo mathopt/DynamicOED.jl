@@ -92,7 +92,7 @@ function switching_function(res::OEDSolution{FisherDCriterion})
     sw = map(res.information_gain.local_information_gain) do P
         detF .* [sum(C .* Pᵢ) for Pᵢ in P]
     end
-    return (sw,  "det F(tf) ⋅ ∑ C(tf) ∘ P(t)")
+    return (sw,  "det F(tf) ⋅ ∑ C(tf) ⊙ P(t)")
 end
 
 """
@@ -111,7 +111,7 @@ function switching_function(res::OEDSolution{FisherECriterion})
     sw = map(enumerate(res.information_gain.local_information_gain)) do (i,P)
         [(v' * Pᵢ * v)[1,1] for Pᵢ in P]
     end
-    return (sw, "v^T P(t) v")
+    return (sw, "vᵀP(t)v")
 end
 
 """
@@ -142,7 +142,7 @@ function switching_function(res::OEDSolution{DCriterion})
     sw = map(res.information_gain.global_information_gain) do Π
         detC .* [sum(F .* Πᵢ) for Πᵢ in Π]
     end
-    return (sw,  "det C(tf) ⋅ ∑ F(tf) ∘ Π(t)")
+    return (sw,  "det(C(tf)) ⋅ ∑ F(tf) ⊙ Π(t)")
 end
 
 """
@@ -161,7 +161,7 @@ function switching_function(res::OEDSolution{ECriterion})
     sw = map(enumerate(res.information_gain.global_information_gain)) do (i,Π)
         [(v' * Πᵢ * v)[1,1] for Πᵢ in Π]
     end
-    return (sw, "v^T Π(t) v")
+    return (sw, "vᵀΠ(t)v")
 end
 
 function _supported_criteria()

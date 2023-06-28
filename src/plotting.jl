@@ -27,7 +27,7 @@ function plot_ode_sol!(f::Figure, res::OEDSolution; kwargs...)
     nothing
 end
 
-function plot_sensitivities!(f::Figure, res::OEDSolution; kwargs...)
+function plot_sensitivities!(f::Figure, res::OEDSolution; states=(:), parameters=(:), kwargs...)
 
     first_plot = isempty(contents(f.layout))
     current_layout = f.layout.size
@@ -35,11 +35,14 @@ function plot_sensitivities!(f::Figure, res::OEDSolution; kwargs...)
 
     ax = Axis(f[idx,1], title="Sensitivity", xlabel="t")
 
-    labels = string.(vec(res.oed.variables.G)) .|> remove_excess_parentheses_and_whitespace
-    foreach(enumerate(eachrow(res.sensitivities))) do (i, g)
+    sensitivities = res.oed.variables.G[states,parameters]
+    idx_G =  vec(LinearIndices(res.oed.variables.G)[states,parameters])
+    labels = string.(vec(sensitivities)) .|> remove_excess_parentheses_and_whitespace
+
+    foreach(enumerate(eachrow(res.sensitivities[idx_G,:]))) do (i, g)
         lines!(ax, res.t, g, label = labels[i]; kwargs...)
     end
-    leg = Legend(f[idx,2], ax, nbanks = maximum([length(res.oed.variables.G) ÷ 6, 1]))
+    leg = Legend(f[idx,2], ax, nbanks = maximum([length(idx_G) ÷ 6, 1]))
     nothing
 end
 

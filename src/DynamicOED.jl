@@ -7,6 +7,7 @@ using AbstractDifferentiation
 using ForwardDiff
 
 using ModelingToolkit
+using ArrayInterface
 using Symbolics
 
 using SciMLBase
@@ -14,10 +15,10 @@ using OrdinaryDiffEq
 using SciMLSensitivity
 
 using Nonconvex
+using NonconvexIpopt
 using CairoMakie
 using Reexport
 
-using ArrayInterface
 @reexport using CairoMakie: save
 
 abstract type AbstractExperimentalDesign end

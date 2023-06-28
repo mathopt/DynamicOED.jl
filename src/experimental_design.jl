@@ -145,7 +145,7 @@ function ExperimentalDesign(prob::DAEProblem, Δt::AbstractFloat; params=nothing
         end
     end
 
-    oed_sys, F, G, z, h, hxG, observed, w = build_oed_system(sys; tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
+    oed_sys, F, G, z, h, hxG, observed, w = build_oed_system(sys; dae=true, tspan = first(tgrid), ps=ps, observed=observed_eqs, kwargs...)
 
     D = Differential(ModelingToolkit.get_iv(oed_sys))
 
@@ -272,7 +272,7 @@ problem from a `ModelingToolkit.AbstractODESystem`.
 Especially, the variables and differential equations for sensitivities and the Fisher
 information matrix (FIM) are added to the system.
 """
-function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys), ps = nothing,
+function build_oed_system(sys::ODESystem; dae=false, tspan = ModelingToolkit.get_tspan(sys), ps = nothing,
     observed = nothing, kwargs...)
     ## Get the eqs and the corresponding gradients
     simplified_sys = structural_simplify(sys)
@@ -296,11 +296,10 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
     end
 
     # Add new variables
-    t = ModelingToolkit.get_iv(sys)
     D = Differential(t)
 
-    eqs = map(x-> x.rhs - x.lhs, equations(sys))
-    xs = states(sys)
+    eqs = dae ? map(x-> x.rhs - x.lhs, equations(sys)) : map(x-> x.rhs, equations(sys))
+    xs = dae ? states(sys) : states(sys)
     dxs = D.(xs)
     ps = isnothing(ps) ? [p for p in parameters(sys) if istunable(p) && !isinput(p)] : ps
 
@@ -318,14 +317,21 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
 
     # Build the new system of deqs
     w = collect(w)
+    F = collect(F)
     G = collect(G)
     Q = collect(Q)
-    dG = collect(D.(G))
     hx = collect(hx)
     idxs = triu(ones(np,np)) .== 1.0
     df = sum(enumerate(w)) do (i, wi)
         wi*((hx[i:i, :]*G)'*(hx[i:i,:]*G))[idxs]
     end
+
+    dynamic_eqs = dae ? Equation[0 .~ eqs;] : equations(sys)
+
+    sens_eqs = dae ? Equation[0 .~ fxs*D.(G) .+ fx*G  .+ fp;] :
+                     Equation[(D.(G) .~ fx*G  .+ fp);]
+
+    FIM_eqs = Equation[D.(F) .~ df;]
 
     observed_eqs = Equation[
         observed_lhs .~ observed_rhs;
@@ -333,13 +339,13 @@ function build_oed_system(sys::ODESystem; tspan = ModelingToolkit.get_tspan(sys)
     ]
 
     @named oed_system = ODESystem([
-            vec(0 .~ eqs);
-            vec(0 .~ fxs*dG .+ fx*G  .+ fp);
-            vec(D.(F) .~ collect(df));
+            vec(dynamic_eqs);
+            vec(sens_eqs);
+            vec(FIM_eqs);
             D.(z) .~ w
         ], tspan = tspan, observed = observed_eqs
     )
-    return structural_simplify(oed_system), F, G, z, observed_lhs, Q, observed_eqs, w
+    return oed_system, F, G, z, observed_lhs, Q, observed_eqs, w
 end
 
 # General predict
@@ -411,13 +417,8 @@ function compute_global_information_gain(oed::ExperimentalDesign, x::NamedTuple;
     F = oed.variables.F
     P, t, sol = isnothing(local_information_gain) ? compute_local_information_gain(oed, x, kwargs...) : local_information_gain
     F_ = _symmetric_from_vector(last(last(sol)[F]))
-    F_inv = det(F_) > 1e-05 ? inv(F_) : nothing
-    while isnothing(F_inv)
-        F_ += 1e-6*I
-        if det(F_) > 1e-02
-            F_inv = inv(F_)
-        end
-    end
+    F_inv = inv(F_ + τ*I)
+
     Πi = isnothing(F_inv) ? nothing : map(1:size(w, 1)) do i
         Pi = P[i]
         map(Pi) do P_i
