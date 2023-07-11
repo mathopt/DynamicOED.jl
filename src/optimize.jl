@@ -28,7 +28,7 @@ struct OEDSolution{C,P,Q,T,GI,S,M,O} <: AbstractOEDSolution
     oed::AbstractExperimentalDesign
 end
 
-function OEDSolution(oed, criterion, w, obj; μ=nothing, kwargs...)
+function OEDSolution(oed, criterion, w::NamedTuple, obj; μ=nothing, kwargs...)
     P, t, sol   = compute_local_information_gain(oed, w; kwargs...);
     Π, _, _     = compute_global_information_gain(oed, w; local_information_gain=(P,t,sol), kwargs...);
     G           = extract_sensitivities(oed, sol)
@@ -56,7 +56,9 @@ If `integer` is set to `true`, the variables representing the sampling decisions
 are treated as integer variables.
 """
 function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector{<:Real}},
-    criterion::AbstractInformationCriterion; solver=IpoptAlg(), options=IpoptOptions(), integer = false, ad_backend = AbstractDifferentiation.ForwardDiffBackend(),
+    criterion::AbstractInformationCriterion; solver=IpoptAlg(), options=IpoptOptions(),
+    integer = false, ad_backend = AbstractDifferentiation.ForwardDiffBackend(),
+    ivs = nothing, bounds_iv = nothing,
     w_init = nothing, kwargs...)
 
     # Define the loss and constraints
@@ -74,10 +76,10 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector
     Δt = (last(tspan)-first(tspan))/n_exp
     n_measure = map(x -> maximum([1,x]),  Int.(floor.(M./Δt)))
 
-    loss(x) = apply_criterion(criterion, ed, x; kwargs...)/n_vars + x.τ
+    loss(x::NamedTuple) = apply_criterion(criterion, ed, x; kwargs...)/n_vars + x.τ
 
     m_constraints(x) = begin
-        sol = last(ed(reshape(x.w, n_vars, n_exp); kwargs...))
+        sol = last(ed(x; kwargs...))
         sol[z][end] .- M
     end
 
@@ -91,6 +93,17 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector
     end : w_init
     @assert length(w_init) == n_vars * n_exp "Provided initial value must have correct dimension. Got $(length(w_init)), expected $(n_vars*n_exp)."
 
+    variable_ivs = !isnothing(bounds_iv)
+    u0_original  = Symbolics.getdefaultval.(states(ed.sys_original))
+
+    iv_lower, iv_upper = !variable_ivs ? (u0_original, u0_original) : (first(bounds_iv), last(bounds_iv))
+    iv_init = isnothing(ivs) ? u0_original : ivs
+
+    @info iv_lower iv_upper iv_init
+
+    @assert (length(iv_init) == length(iv_lower) && length(iv_init) == length(iv_upper)) "Initial values and their bounds must have the same dimension."
+    @assert all(iv_lower .<= iv_upper) "Bounds for initial values in wrong order."
+
     w_lower = 0.5*ones(Float64, n_vars, n_exp)
     w_upper = ones(Float64, n_vars, n_exp)
 
@@ -98,11 +111,12 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector
     τ_lower = eltype(w_init)(1e-4)
     τ_upper = typeof(τ_init)(1)
 
-    x_init = (; w = w_lower, τ = τ_init)
-    x_upper = (; w = w_upper, τ = τ_upper)
-    x_lower = (; w = w_lower, τ = τ_lower)
-    x_integer = (; w = integer ? ones(Bool, size(w_init)) : zeros(Bool, size(w_init)), τ = false)
+    x_init = (; w = w_lower, τ = τ_init, iv=iv_init)
+    x_upper = (; w = w_upper, τ = τ_upper, iv=iv_upper)
+    x_lower = (; w = w_lower, τ = τ_lower, iv=iv_lower)
+    x_integer = (; w = integer ? ones(Bool, size(w_init)) : zeros(Bool, size(w_init)), τ = false, iv=zeros(Bool, size(iv_init)))
 
+    @info typeof(x_init)
     ## Convert to  AD
     loss = abstractdiffy(loss, ad_backend, x_init)
     m_constraints = abstractdiffy(m_constraints, ad_backend, x_init)
@@ -111,13 +125,13 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector
     addvar!(model, x_lower, x_upper, init=x_init, integer = x_integer)
     #set_objective!(model, loss)
     add_ineq_constraint!(model, m_constraints)
-    setmin!(model, 1, (;w=zeros(n_vars, n_exp), τ = 0.0))
+    setmin!(model, 1, (;w=zeros(n_vars, n_exp), τ = 0.0, iv=iv_lower))
 
     # Solve
     res = Nonconvex.optimize(model, solver, x_init, options = options)
 
     multiplier = get_lagrange_multiplier(res)
-
+    @info res.minimizer typeof(res.minimizer)
     return OEDSolution(ed, criterion, res.minimizer, res.minimum; μ=multiplier, kwargs...)
 end
 

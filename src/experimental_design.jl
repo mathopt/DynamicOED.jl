@@ -356,11 +356,15 @@ function (oed::ExperimentalDesign)(;u0::AbstractVector = oed.prob.u0, tspan::Tup
 end
 
 # Predict using the measurement array
-function (oed::ExperimentalDesign)(w::AbstractArray; alg = Tsit5(), kwargs...)
+function (oed::ExperimentalDesign)(x::NamedTuple; alg = Tsit5(), kwargs...)
     sol_ = nothing
-    map(1:size(w, 2)) do i
-        ps = vcat(oed.ps[.! oed.w_indicator], w[:,i])
-        _prob = remake(oed.prob, u0 = i >= 2 ? sol_[:, end] : oed.prob.u0 , tspan = oed.tgrid[i], p = ps)
+    sts = states(oed.sys)
+    idxs_iv = [argmax(isequal.(sts_, sts)) for sts_ in states(oed.sys_original)]
+    idxs_prob_u0 = setdiff(1:length(oed.prob.u0), idxs_iv)
+
+    map(1:size(x.w, 2)) do i
+        ps = vcat(oed.ps[.! oed.w_indicator], x.w[:,i])
+        _prob = remake(oed.prob, u0 = i >= 2 ? sol_[:, end] : [x.iv; oed.prob.u0[idxs_prob_u0]]  , tspan = oed.tgrid[i], p = ps)
         sol_ = solve(_prob, alg, sensealg = ForwardDiffSensitivity(), kwargs...)
         return sol_
     end
@@ -391,7 +395,8 @@ function compute_local_information_gain(oed::ExperimentalDesign, x::NamedTuple; 
     w, τ = x.w, x.τ
     hxG = oed.variables.hxG
     n_vars = size(hxG,1)
-    sol = oed(w; kwargs...)
+    @info x
+    sol = oed(x; kwargs...)
     t = [d.t[i] for d in sol for i=1:length(d)-1]
     t = [t; last(ModelingToolkit.get_tspan(oed.sys_original))]
     Qs = reduce(vcat, map(enumerate(sol)) do (i,s)

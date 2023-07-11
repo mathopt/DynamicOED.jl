@@ -18,11 +18,11 @@ $(SIGNATURES)
 
 Integrates dynamics for current iterate `x` and evaluates criterion `c` on Fisher information matrix.
 """
-function apply_criterion(c, ed::ExperimentalDesign, x; kwargs...)
+function apply_criterion(c, ed::ExperimentalDesign, x::NamedTuple; kwargs...)
     w = x.w
     τ = x.τ
     F_ = ed.variables.F
-    sol = last(ed(w; kwargs...))
+    sol = last(ed(x; kwargs...))
     F = _symmetric_from_vector(last(sol[F_]))
     c(F, τ)
 end
