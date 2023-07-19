@@ -58,7 +58,7 @@ are treated as integer variables.
 function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector{<:Real}},
     criterion::AbstractInformationCriterion; solver=IpoptAlg(), options=IpoptOptions(),
     integer = false, ad_backend = AbstractDifferentiation.ForwardDiffBackend(),
-    ivs = nothing, bounds_iv = nothing,
+    u0 = nothing, bounds_u0 = nothing,
     w_init = nothing, kwargs...)
 
     # Define the loss and constraints
@@ -93,13 +93,17 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector
     end : w_init
     @assert length(w_init) == n_vars * n_exp "Provided initial value must have correct dimension. Got $(length(w_init)), expected $(n_vars*n_exp)."
 
-    variable_ivs = !isnothing(bounds_iv)
-    u0_original  = Symbolics.getdefaultval.(states(ed.sys_original))
+    variable_initial_values = !isnothing(bounds_u0)
+    u0 = !isnothing(u0) ? u0 :  begin
+        try
+            Symbolics.getdefaultval.(states(ed.sys_original))
+        catch
+            isnothing(ed.prob_original) ? Symbolics.getdefaultval.(states(structural_simplify(ed.sys_original))) : ed.prob_original.u0
+        end
+    end
 
-    iv_lower, iv_upper = !variable_ivs ? (u0_original, u0_original) : (first(bounds_iv), last(bounds_iv))
-    iv_init = isnothing(ivs) ? u0_original : ivs
-
-    @info iv_lower iv_upper iv_init
+    iv_lower, iv_upper = !variable_initial_values ? (u0, u0) : (first(bounds_u0), last(bounds_u0))
+    iv_init = u0
 
     @assert (length(iv_init) == length(iv_lower) && length(iv_init) == length(iv_upper)) "Initial values and their bounds must have the same dimension."
     @assert all(iv_lower .<= iv_upper) "Bounds for initial values in wrong order."
@@ -116,7 +120,6 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector
     x_lower = (; w = w_lower, τ = τ_lower, iv=iv_lower)
     x_integer = (; w = integer ? ones(Bool, size(w_init)) : zeros(Bool, size(w_init)), τ = false, iv=zeros(Bool, size(iv_init)))
 
-    @info typeof(x_init)
     ## Convert to  AD
     loss = abstractdiffy(loss, ad_backend, x_init)
     m_constraints = abstractdiffy(m_constraints, ad_backend, x_init)
@@ -131,7 +134,7 @@ function SciMLBase.solve(ed::ExperimentalDesign, M::Union{<:Real, AbstractVector
     res = Nonconvex.optimize(model, solver, x_init, options = options)
 
     multiplier = get_lagrange_multiplier(res)
-    @info res.minimizer typeof(res.minimizer)
+
     return OEDSolution(ed, criterion, res.minimizer, res.minimum; μ=multiplier, kwargs...)
 end
 

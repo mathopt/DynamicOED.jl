@@ -25,7 +25,9 @@ abstract type AbstractExperimentalDesign end
 abstract type AbstractInformationCriterion end
 abstract type AbstractOEDSolution end
 
-include("experimental_design.jl")
+include("experimental_design/experimental_design.jl")
+include("experimental_design/ode.jl")
+include("experimental_design/dae.jl")
 export ExperimentalDesign
 
 include("optimize.jl")
@@ -37,8 +39,5 @@ export ACriterion, DCriterion, ECriterion
 
 include("plotting.jl")
 export plotOED
-
-include("dae.jl")
-export modelingtoolkitize
 
 end # module DynamicOED
