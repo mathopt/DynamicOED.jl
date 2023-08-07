@@ -3,6 +3,7 @@ module DynamicOED
 using DocStringExtensions
 using LinearAlgebra
 
+using FastDifferentiation
 using AbstractDifferentiation
 using ForwardDiff
 
@@ -16,28 +17,43 @@ using SciMLSensitivity
 
 using Nonconvex
 using NonconvexIpopt
-using CairoMakie
+#using CairoMakie
 using Reexport
 
-@reexport using CairoMakie: save
+#@reexport using CairoMakie: save
 
 abstract type AbstractExperimentalDesign end
 abstract type AbstractInformationCriterion end
 abstract type AbstractOEDSolution end
 
-include("experimental_design/experimental_design.jl")
-include("experimental_design/ode.jl")
-include("experimental_design/dae.jl")
-export ExperimentalDesign
 
-include("optimize.jl")
-export OEDSolution, solve
+build_extended_problem(::T) where T = throw(ErrorException("Augmentation for $T not implemented."))
 
-include("criteria.jl")
-export FisherACriterion, FisherDCriterion, FisherECriterion
-export ACriterion, DCriterion, ECriterion
+"""
+Extends the given `AbstractDEProblem` such that the dynamics include the sensitivy equations.
+"""
+function augment_problem(de::SciMLBase.AbstractDEProblem)
+    build_extended_problem(de)
+end
 
-include("plotting.jl")
-export plotOED
+export augment_problem
+
+include("augmentation/ode.jl")
+
+
+#include("experimental_design/experimental_design.jl")
+#include("experimental_design/ode.jl")
+#include("experimental_design/dae.jl")
+#export ExperimentalDesign
+#
+#include("optimize.jl")
+#export OEDSolution, solve
+#
+#include("criteria.jl")
+#export FisherACriterion, FisherDCriterion, FisherECriterion
+#export ACriterion, DCriterion, ECriterion
+#
+#include("plotting.jl")
+#export plotOED
 
 end # module DynamicOED
