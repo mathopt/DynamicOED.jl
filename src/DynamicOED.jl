@@ -4,21 +4,22 @@ using DocStringExtensions
 using LinearAlgebra
 
 using FastDifferentiation
-using AbstractDifferentiation
-using ForwardDiff
-
-using ModelingToolkit
-using ArrayInterface
-using Symbolics
+#using AbstractDifferentiation
+#using ForwardDiff
+using Integrals
+using ChainRulesCore
+#using ModelingToolkit
+#using ArrayInterface
+#using Symbolics
 
 using SciMLBase
 using OrdinaryDiffEq
 using SciMLSensitivity
 
-using Nonconvex
-using NonconvexIpopt
+#using Nonconvex
+#using NonconvexIpopt
 #using CairoMakie
-using Reexport
+#using Reexport
 
 #@reexport using CairoMakie: save
 
