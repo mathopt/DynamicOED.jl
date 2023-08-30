@@ -4,7 +4,7 @@ using DocStringExtensions
 using LinearAlgebra
 
 using FastDifferentiation
-#using AbstractDifferentiation
+using AbstractDifferentiation
 #using ForwardDiff
 using Integrals
 using ChainRulesCore
@@ -15,9 +15,9 @@ using ChainRulesCore
 using SciMLBase
 using OrdinaryDiffEq
 using SciMLSensitivity
-
-#using Nonconvex
-#using NonconvexIpopt
+using Zygote
+using Nonconvex
+using NonconvexIpopt
 #using CairoMakie
 #using Reexport
 
@@ -26,7 +26,7 @@ using SciMLSensitivity
 abstract type AbstractExperimentalDesign end
 abstract type AbstractInformationCriterion end
 abstract type AbstractOEDSolution end
-
+abstract type AbstractFisher end
 
 build_extended_problem(::T) where T = throw(ErrorException("Augmentation for $T not implemented."))
 
@@ -40,8 +40,8 @@ end
 export augment_problem
 
 include("augmentation/ode.jl")
-
-
+include("augmentation/utils.jl")
+include("augmentation/criteria.jl")
 
 #include("experimental_design/experimental_design.jl")
 #include("experimental_design/ode.jl")
