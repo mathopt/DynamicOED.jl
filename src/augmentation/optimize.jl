@@ -3,7 +3,7 @@ function SciMLBase.solve(prob::OEDProblem, M::Union{<:Real, AbstractVector{<:Rea
     options=IpoptOptions(), ad_backend=AbstractDifferentiation.ForwardDiffBackend(),
     bounds_u0 = nothing, kwargs...)
 
-    nh = prob.predictor.nxnh.nh
+    nh = prob.predictor.dimensions.nh
 
     if isa(M, AbstractVector)
     @assert length(M) == nh "Number of measurement constraints must be equal to the number of observed variables or scalar!"

@@ -1,7 +1,7 @@
 struct OEDFisher{PROB, O} <: AbstractFisher
     problem::PROB
     observed::O
-    nxnh::NamedTuple
+    dimensions::NamedTuple
 end
 
 function (fisher::OEDFisher)(w, u = fisher.problem.u0, p =fisher.problem.p, tspan=fisher.problem.tspan;
@@ -65,7 +65,7 @@ function build_extended_dynamics(prob::ODEProblem; variable_iv=false)
     nh = length(h)
     W = make_variables(:w, nh)
     hx = FastDifferentiation.jacobian(h, states[1:nx])
-    fidxs = tril!(trues((np,np)))
+    fidxs = triu!(trues((np,np)))
 
     fvec = sum(map(enumerate(W)) do (i, wi)
         hxiG = hx[i:i,:] * G
@@ -100,9 +100,9 @@ function build_extended_dynamics(prob::ODEProblem; variable_iv=false)
 
     FastDifferentiation.clear_cache()
 
-    nxnh = (nx=nx, nh=nh)
+    dimensions = (nx=nx, nh=nh, np=np)
 
-    OEDFisher(new_prob, f_new_observed, nxnh)
+    OEDFisher(new_prob, f_new_observed, dimensions)
 end
 
 function __solve_fisher(fisher::OEDFisher, u, p, tspan; alg=Tsit5(), kwargs...)
@@ -183,7 +183,7 @@ _get_w(w::NamedTuple) = w.w
 
 _make_w(prob::OEDProblem, init::Union{Real, AbstractArray{<:Real}}) = begin
     ngrid   = length(prob.timegrid)
-    nh      = prob.predictor.nxnh.nh
+    nh      = prob.predictor.dimensions.nh
 
     w_init = begin
         if isa(init, AbstractArray)
@@ -198,7 +198,7 @@ end
 
 _make_u0(prob::OEDProblem) = begin
     u0 = prob.predictor.problem.u0
-    nx = prob.predictor.nxnh.nx
+    nx = prob.predictor.dimensions.nx
     u0[1:nx]
 end
 
