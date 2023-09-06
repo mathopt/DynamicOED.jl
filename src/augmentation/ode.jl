@@ -1,5 +1,6 @@
-struct OEDFisher{PROB, O} <: AbstractFisher
+struct OEDFisher{PROB, I, O} <: AbstractFisher
     problem::PROB
+    integrand::I
     observed::O
     dimensions::NamedTuple
 end
@@ -15,20 +16,14 @@ function __integrate_fisher(fisher::OEDFisher, sol::DESolution, w::AbstractArray
     np      = size(sol.prob.p, 1)
     nout    = Int(np*(np+1)/2)
     integrand = let p0 = p, sol = sol
-        (t, p) -> fisher.observed(sol(t), p0, t, p)
+        (t, p) -> fisher.integrand(sol(t), p0, t, p)
     end
     _prob    = Integrals.IntegralProblem{false}(integrand, first(sol.t), last(sol.t), w; nout=nout)
     F = solve(_prob, HCubatureJL())
     return F
-    #u       = Array(sol)
-    #solt    = sol.t
-    #difft   = Zygote.@ignore diff(sol.t)
-    #dF      = [fisher.observed(u[:,i],p,solt[i],w) for i in eachindex(solt)]
-    #sum([0.5 * Δt * (dF[i] .+ dF[i+1]) for (i,Δt) in enumerate(difft)])
 end
 
-
-function build_extended_dynamics(prob::ODEProblem; variable_iv=false)
+function build_extended_dynamics(prob::ODEProblem; parameters=1:length(prob.p), variable_iv=false)
     f = prob.f
 
     observed_f = (f.observed != SciMLBase.DEFAULT_OBSERVED) ? f.observed : (u,p,t) -> u
@@ -36,55 +31,56 @@ function build_extended_dynamics(prob::ODEProblem; variable_iv=false)
     FastDifferentiation.clear_cache()
 
     nx = length(prob.u0)
-    np_or = length(prob.p)
+    np_original = length(prob.p)
+    np_selected = length(parameters)
     np_iv = nx
 
-    np = variable_iv ? np_or + np_iv : np_or
+    np_real = variable_iv ? np_selected + np_iv : np_selected
+    np_created = variable_iv ? np_original + np_iv : np_original # just for dimension purposes
 
     x = make_variables(:u, nx)
-    p = make_variables(:p, np)
+    p = make_variables(:p, np_created)
     t = make_variables(:t, 1)
 
     eq = f(x, p, t)
-    G = make_variables(:G, nx,np)
-    G_iv =  zeros(nx,np_or)
+    G = make_variables(:G, nx, np_real)
+    G_iv =  zeros(nx, np_selected)
     G_iv = variable_iv ? hcat(G_iv, Matrix{eltype(G_iv)}(I,nx,nx)) : G_iv
 
     dfdx = FastDifferentiation.jacobian(eq, x)
-    dfdp = FastDifferentiation.jacobian(eq, p)
+    parameters_considered = variable_iv ? vcat(parameters, collect(np_original+1:np_created)) : parameters
+    dfdp = FastDifferentiation.jacobian(eq, p[parameters_considered])
+    G1 = dfdx * G .+ dfdp
 
-    Ġ = dfdx * G .+ dfdp
-
-    Σ = vcat(eq, vec(Ġ))
+    Σ = eltype(eq).(vcat(eq, vec(G1)))
 
     states = vcat(x, vec(G))
     state_syms = (isa(f, ODEFunction) && !isnothing(f.syms)) ? vcat(f.syms... , Symbol.(vec(G))) : Symbol.(states)
-    parameters = p
 
-    h = observed_f(states[1:nx], parameters, t)
-    nh = length(h)
+    h_ = observed_f(states[1:nx], p, t)
+    h  = make_function(h_, states[1:nx], p, t)
+    nh = length(h_)
     W = make_variables(:w, nh)
-    hx = FastDifferentiation.jacobian(h, states[1:nx])
-    fidxs = triu!(trues((np,np)))
+    hx = FastDifferentiation.jacobian(h_, states[1:nx])
+    hx_fun = make_function(hx, states[1:nx], p, t)
+    fidxs = triu!(trues((np_real,np_real)))
 
     fvec = sum(map(enumerate(W)) do (i, wi)
         hxiG = hx[i:i,:] * G
         wi * ((hxiG' * hxiG)[fidxs])
     end)
 
+    #jac_full = make_function(FastDifferentiation.jacobian(Σ, states), states, p, t; in_place = false)
+    eq_full = make_function(Σ, states, p, t; in_place = false)
+    dF = make_function(fvec, states, p, t, W; in_place = false)
 
-    #jac_full = make_function(FastDifferentiation.jacobian(Σ, states), states, parameters, t; in_place = false)
-    eq_full = make_function(Σ, states, parameters, t; in_place = false)
-    dF = make_function(fvec, states, parameters, t, W; in_place = false)
-
-    # In place does not work as expected here, so we simply wrap
     f_new = let eq_full = eq_full
         (u, p, t) -> begin
             eq_full(vcat(u, p, t))
         end
     end
 
-    f_new_observed = let dF = dF
+    integrand = let dF = dF
         (u, p, t, w_) -> begin
             dF(vcat(u, p, t, w_))
         end
@@ -95,14 +91,14 @@ function build_extended_dynamics(prob::ODEProblem; variable_iv=false)
     )
 
     p =  variable_iv ? vcat(prob.p, prob.u0) : prob.p
-
     new_prob = ODEProblem(new_f, vcat(prob.u0, vec(G_iv)), prob.tspan, p)
 
     FastDifferentiation.clear_cache()
 
-    dimensions = (nx=nx, nh=nh, np=np)
+    dimensions = (nx=nx, nh=nh, np=np_real)
+    observed = (h=h, hx=hx_fun,)
 
-    OEDFisher(new_prob, f_new_observed, dimensions)
+    OEDFisher(new_prob, integrand, observed, dimensions)
 end
 
 function __solve_fisher(fisher::OEDFisher, u, p, tspan; alg=Tsit5(), kwargs...)
@@ -121,9 +117,8 @@ function OEDProblem(predictor::AbstractFisher, timegrid::T, Δt::Real, sols::S; 
     OEDProblem{variable_iv, T, S}(predictor, timegrid, Δt, sols)
 end
 
-
-function OEDProblem(prob::DEProblem, n::Int; variable_iv = false, kwargs...)
-    aug_prob = DynamicOED.build_extended_dynamics(prob; variable_iv =variable_iv)
+function OEDProblem(prob::DEProblem, n::Int; parameters=1:length(prob.p), variable_iv = false, kwargs...)
+    aug_prob = DynamicOED.build_extended_dynamics(prob; parameters=parameters, variable_iv =variable_iv)
     Δt = float(-(reverse(prob.tspan)...)/n)
     timegrid = get_tgrid(Δt, prob.tspan)
 
@@ -178,6 +173,11 @@ function (x::OEDProblem)(w::AbstractArray, u0::AbstractVector, p::AbstractVector
     _symmetric_from_vector(F_)
 end
 
+function (x::OEDProblem)(w::NamedTuple; kwargs...)
+    u0_ = vcat(w.u0, x.predictor.problem.u0[size(w.u0,1)+1:end])
+    x(w.w, u0_; kwargs...)
+end
+
 _get_w(w::AbstractArray) = w
 _get_w(w::NamedTuple) = w.w
 
@@ -206,15 +206,15 @@ _make_c0(prob::OEDProblem) = begin
 
 end
 
-make_params(prob::OEDProblem{false}, init::Union{Real, AbstractArray{<:Real}}, args...) = begin
+function make_params(prob::OEDProblem{false}, init::Union{Real, AbstractArray{<:Real}}, integer::Bool, args...)
     w = _make_w(prob, init)
     w_lower = zeros(eltype(w),size(w))
     w_upper = ones(eltype(w), size(w))
-
-    return w, w_lower, w_upper
+    w_integer = integer ? ones(Bool, size(w)) : zeros(Bool, size(w))
+    return w, w_lower, w_upper, w_integer
 end
 
-function make_params(prob::OEDProblem{true}, init::Union{Real, AbstractArray{<:Real}}, bounds)
+function make_params(prob::OEDProblem{true}, init::Union{Real, AbstractArray{<:Real}}, integer::Bool, bounds)
     w = _make_w(prob, init)
     w_lower = zeros(size(w))
     w_upper = ones(size(w))
@@ -230,5 +230,7 @@ function make_params(prob::OEDProblem{true}, init::Union{Real, AbstractArray{<:R
     x = (w=w, u0=u0,)
     x_lower = (w = w_lower, u0=u0_lower,)
     x_upper = (w = w_upper, u0=u0_upper,)
-    return x, x_lower, x_upper
+    x_integer = (w = integer ? ones(Bool, size(w)) : zeros(Bool, size(w)), u0=zeros(Bool, size(u0)))
+
+    return x, x_lower, x_upper, x_integer
 end

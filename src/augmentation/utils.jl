@@ -27,16 +27,57 @@ function Base.show(io::IO, oed::OEDProblem)
     show(io, "text/plain", oed.predictor.problem)
 end
 
-function get_t_and_sols(x::DynamicOED.OEDProblem{true}, res::NamedTuple)
-    nx = x.predictor.dimensions.nx
-    sols = grid_solve(x.predictor, vcat(res.u0, x.predictor.problem.u0[nx+1:end]), x.predictor.problem.p, tuple(x.timegrid...))
-    solt = vcat([sol.t for sol in sols]...)
-    syms = reshape(sols[1].prob.f.syms .|> string, (1,length(first(sols[1]))))
-    return (t=solt, sol=hcat(Array.(sols)...), syms=syms)
+function Base.show(io::IO, sol::OEDSolution)
+    println("Exited with final objective $(sol.obj).")
 end
 
-function get_t_and_sols(x::DynamicOED.OEDProblem{false}, args...)
-    solt = vcat([sol.t for sol in x.sols]...)
+function get_t_and_sols(x::DynamicOED.OEDProblem{true}, res::NamedTuple; kwargs...)
+    nx = x.predictor.dimensions.nx
+    sols = grid_solve(x.predictor, vcat(res.u0, x.predictor.problem.u0[nx+1:end]), x.predictor.problem.p, tuple(x.timegrid...); kwargs...)
+    solt = vcat([sol.t[1:end-1] for sol in sols]..., last(last(sols).t))
+    syms = reshape(sols[1].prob.f.syms .|> string, (1,length(first(sols[1]))))
+    sols_ = hcat([Array(sol[:,1:end-1]) for sol in sols]..., last(last(sols)))
+    return (t=solt, u=sols_, syms=syms)
+end
+
+function get_t_and_sols(x::DynamicOED.OEDProblem{false}, args...; kwargs...)
+    solt = vcat([sol.t[1:end-1] for sol in x.sols]..., last(last(x.sols).t))
     syms = reshape(x.sols[1].prob.f.syms .|> string, (1,length(first(x.sols[1]))))
-    return (t=solt, sol=hcat(Array.(x.sols)...), syms=syms)
+    sols_ = hcat([Array(sol[:,1:end-1]) for sol in x.sols]..., last(last(x.sols)))
+    return (t=solt, u=sols_, syms=syms)
+end
+
+function get_lagrange_multiplier(res)
+    try
+        return res.problem.mult_g
+    catch e
+        return nothing
+    end
+end
+
+function compute_local_information_gain(oed::OEDProblem, sol::AbstractArray, t::AbstractVector)
+    nh  = oed.predictor.dimensions.nh
+    nx  = oed.predictor.dimensions.nx
+    np  = oed.predictor.dimensions.np
+    p   = oed.predictor.problem.p
+    map(1:nh) do i
+        map(zip(eachcol(sol), t)) do (sol_t, t_i)
+            x, G = sol_t[1:nx], reshape(sol_t[nx+1:end], (nx, np))
+            hxi = oed.predictor.observed.hx(x, p, t_i)[i:i, :]
+            (hxi*G)' * (hxi*G)
+        end
+    end
+end
+
+function compute_global_information_gain(oed::OEDProblem, F_tf::AbstractArray,
+                                        local_information_gain::AbstractArray)
+
+    isapprox(det(F_tf), 0) && return nothing
+    F_inv = inv(F_tf)
+
+    map(1:oed.predictor.dimensions.nh) do i
+        map(local_information_gain[i]) do Pi
+            F_inv * Pi * F_inv
+        end
+    end
 end

@@ -41,6 +41,7 @@ export augment_problem
 
 include("augmentation/ode.jl")
 include("augmentation/dae.jl")
+include("augmentation/solution.jl")
 include("augmentation/utils.jl")
 include("augmentation/optimize.jl")
 include("augmentation/criteria.jl")
