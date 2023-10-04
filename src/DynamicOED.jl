@@ -27,6 +27,7 @@ abstract type AbstractExperimentalDesign end
 abstract type AbstractInformationCriterion end
 abstract type AbstractOEDSolution end
 abstract type AbstractFisher end
+abstract type AbstractTimeGrid end
 
 build_extended_problem(::T) where T = throw(ErrorException("Augmentation for $T not implemented."))
 

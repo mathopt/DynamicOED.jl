@@ -120,7 +120,7 @@ end
 function OEDProblem(prob::DEProblem, n::Int; parameters=1:length(prob.p), variable_iv = false, kwargs...)
     aug_prob = DynamicOED.build_extended_dynamics(prob; parameters=parameters, variable_iv =variable_iv)
     Δt = float(-(reverse(prob.tspan)...)/n)
-    timegrid = get_tgrid(Δt, prob.tspan)
+    timegrid = get_tgrid(prob.tspan, Δt)
 
     u0 = aug_prob.problem.u0
     p = aug_prob.problem.p
