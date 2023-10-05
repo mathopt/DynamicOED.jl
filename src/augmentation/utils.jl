@@ -21,7 +21,8 @@ function TimeGrid(tspan::Tuple{Real, Real}, Nw::Int, Nc::Int)
     wgrid = DynamicOED.get_tgrid(tspan, Nw)
     cgrid = DynamicOED.get_tgrid(tspan, Nc)
 
-    completegrid = unique(sort(vcat(first.(wgrid),first.(cgrid), last.(wgrid), last.(cgrid))))
+    completegrid = sort(vcat(first.(wgrid),first.(cgrid), last.(wgrid), last.(cgrid)))
+    completegrid = unique(x->round(x, digits=10), completegrid) # remove items that are approximately the same
 
     simgrid = Tuple.([(completegrid[1:end-1][i], completegrid[2:end][i]) for i=1:length(completegrid)-1])
 
@@ -96,7 +97,7 @@ end
 
 function get_t_and_sols(x::DynamicOED.OEDProblem{true}, res::NamedTuple; kwargs...)
     nx = x.predictor.dimensions.nx
-    sols = grid_solve(x.predictor, vcat(res.u0, x.predictor.problem.u0[nx+1:end]), x.predictor.problem.p, tuple(x.timegrid...); kwargs...)
+    sols = grid_solve(x.predictor, vcat(res.u0, x.predictor.problem.u0[nx+1:end]), x.predictor.problem.p, tuple(x.timegrid.simgrid...); kwargs...)
     solt = vcat([sol.t[1:end-1] for sol in sols]..., last(last(sols).t))
     syms = reshape(sols[1].prob.f.syms .|> string, (1,length(first(sols[1]))))
     sols_ = hcat([Array(sol[:,1:end-1]) for sol in sols]..., last(last(sols)))

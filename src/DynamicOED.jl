@@ -47,6 +47,7 @@ include("augmentation/utils.jl")
 include("augmentation/optimize.jl")
 include("augmentation/criteria.jl")
 
+export OEDProblem
 #include("experimental_design/experimental_design.jl")
 #include("experimental_design/ode.jl")
 #include("experimental_design/dae.jl")

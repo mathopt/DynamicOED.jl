@@ -13,7 +13,7 @@ function SciMLBase.solve(prob::OEDProblem, M::Union{<:Real, AbstractVector{<:Rea
 
     loss(w::W) where W = apply_criterion(criterion, prob, w; kwargs...)/nh
 
-    m_constraints(w) = let Δt = prob.Δt
+    m_constraints(w) = let Δt = -(reverse(prob.predictor.problem.tspan)...)/length(prob.timegrid.grids.wgrid)
         map(_x->Δt*sum(_x), eachrow(_get_w(w))) .- M
     end
 
