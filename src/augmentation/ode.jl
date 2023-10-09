@@ -112,8 +112,16 @@ struct OEDProblem{ufixed,S} <: AbstractExperimentalDesign
     sols::S
 end
 
-function OEDProblem(predictor::AbstractFisher, timegrid::AbstractTimeGrid, Δt::Real, sols::S; variable_iv::Bool = false) where S
-    OEDProblem{variable_iv, S}(predictor, timegrid, Δt, sols)
+function OEDProblem(predictor::AbstractFisher, timegrid::AbstractTimeGrid, sols::S; variable_iv::Bool = false) where S
+    OEDProblem{variable_iv, S}(predictor, timegrid, sols)
+end
+
+function OEDProblem(predictor::AbstractFisher, timegrid::AbstractTimeGrid; variable_iv::Bool = false, kwargs...)
+    u0 = predictor.problem.u0
+    p = predictor.problem.p
+    sols = grid_solve(predictor, u0, p, tuple(timegrid.simgrid...); kwargs...)
+
+    OEDProblem{variable_iv, typeof(sols)}(predictor, timegrid, sols)
 end
 
 function OEDProblem(prob::DEProblem, nw::Int; nc=nw, parameters=1:length(prob.p), variable_iv = false, kwargs...)
