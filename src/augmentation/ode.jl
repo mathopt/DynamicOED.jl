@@ -106,27 +106,34 @@ function __solve_fisher(fisher::OEDFisher, u, p, tspan; alg=Tsit5(), kwargs...)
     OrdinaryDiffEq.solve(_prob, alg, kwargs...)
 end
 
-struct OEDProblem{ufixed,T,S} <: AbstractExperimentalDesign
+struct OEDProblem{ufixed,S} <: AbstractExperimentalDesign
     predictor:: AbstractFisher
-    timegrid::T
-    Δt::Real
+    timegrid::AbstractTimeGrid
     sols::S
 end
 
-function OEDProblem(predictor::AbstractFisher, timegrid::T, Δt::Real, sols::S; variable_iv::Bool = false) where {T, S}
-    OEDProblem{variable_iv, T, S}(predictor, timegrid, Δt, sols)
+function OEDProblem(predictor::AbstractFisher, timegrid::AbstractTimeGrid, sols::S; variable_iv::Bool = false) where S
+    OEDProblem{variable_iv, S}(predictor, timegrid, sols)
 end
 
-function OEDProblem(prob::DEProblem, n::Int; parameters=1:length(prob.p), variable_iv = false, kwargs...)
+function OEDProblem(predictor::AbstractFisher, timegrid::AbstractTimeGrid; variable_iv::Bool = false, kwargs...)
+    u0 = predictor.problem.u0
+    p = predictor.problem.p
+    sols = grid_solve(predictor, u0, p, tuple(timegrid.simgrid...); kwargs...)
+
+    OEDProblem{variable_iv, typeof(sols)}(predictor, timegrid, sols)
+end
+
+function OEDProblem(prob::DEProblem, nw::Int; nc=nw, parameters=1:length(prob.p), variable_iv = false, kwargs...)
     aug_prob = DynamicOED.build_extended_dynamics(prob; parameters=parameters, variable_iv =variable_iv)
-    Δt = float(-(reverse(prob.tspan)...)/n)
-    timegrid = get_tgrid(Δt, prob.tspan)
+
+    timegrid = TimeGrid(prob.tspan, nw, nc)
 
     u0 = aug_prob.problem.u0
     p = aug_prob.problem.p
-    sols = grid_solve(aug_prob, u0, p, tuple(timegrid...); kwargs...)
+    sols = grid_solve(aug_prob, u0, p, tuple(timegrid.simgrid...); kwargs...)
 
-    return OEDProblem(aug_prob, timegrid, Δt, sols; variable_iv)
+    return OEDProblem{variable_iv, typeof(sols)}(aug_prob, timegrid, sols)
 end
 
 function grid_solve(problem::AbstractFisher, u0::AbstractVector, p0::AbstractVector, tgrids::T; kwargs...) where T <: Tuple
@@ -143,33 +150,42 @@ function _grid_solve(problem::AbstractFisher, u0::AbstractVector, p0::AbstractVe
     (sol,)
 end
 
-function grid_integrate(problem::AbstractFisher, x::T; kwargs...) where T <: Tuple
-    _grid_integrate(problem, x...; kwargs...)
+function grid_integrate(problem::AbstractFisher, indicator::NamedTuple, w::AbstractArray,
+                            sols::T; kwargs...) where T <: Tuple
+    _grid_integrate(problem, indicator, w, sols...; kwargs...)
 end
 
-function _grid_integrate(problem::AbstractFisher, single_x::T, x...; kwargs...) where T
-    F = __integrate_fisher(problem, single_x...)
-    F .+ _grid_integrate(problem, x...)
+function _grid_integrate(problem::AbstractFisher, indicator::NamedTuple, w::AbstractArray,
+                            single_sol::T, sols...; kwargs...) where T
+
+    i, sol = single_sol
+    wi = w[:,indicator.w[i]]
+    F = __integrate_fisher(problem, sol, wi)
+    F .+ _grid_integrate(problem, indicator, w, sols...)
 end
 
-function _grid_integrate(problem::AbstractFisher, single_x::T; kwargs...) where T
-    __integrate_fisher(problem, single_x...)
+function _grid_integrate(problem::AbstractFisher, indicator::NamedTuple, w::AbstractArray,
+                            single_sol::T; kwargs...) where T
+
+    i, sol = single_sol
+    wi = w[:,indicator.w[i]]
+    __integrate_fisher(problem, sol, wi)
 end
 
 function (x::OEDProblem)(w::AbstractArray; kwargs...)
-    F_ = grid_integrate(x.predictor, tuple(zip(x.sols, eachcol(w))...))
+    F_ = grid_integrate(x.predictor, x.timegrid.indicator, w, tuple(enumerate(x.sols)...))
     _symmetric_from_vector(F_)
 end
 
 function (x::OEDProblem)(w::AbstractArray, u0::AbstractVector; kwargs...)
-    sols = grid_solve(x.predictor, u0, x.predictor.problem.p, tuple(x.timegrid...); kwargs...)
-    F_ = grid_integrate(x.predictor, tuple(zip(sols, eachcol(w))...))
+    sols = grid_solve(x.predictor, u0, x.predictor.problem.p, tuple(x.timegrid.simgrid...); kwargs...)
+    F_ = grid_integrate(x.predictor, x.timegrid.indicator, w, tuple(enumerate(sols)...))
     _symmetric_from_vector(F_)
 end
 
 function (x::OEDProblem)(w::AbstractArray, u0::AbstractVector, p::AbstractVector; kwargs...)
-    sols = grid_solve(x.predictor, u0, p, tuple(x.timegrid...); kwargs...)
-    F_ = grid_integrate(x.predictor, tuple(zip(sols, eachcol(w))...))
+    sols = grid_solve(x.predictor, u0, p, tuple(x.timegrid.simgrid...); kwargs...)
+    F_ = grid_integrate(x.predictor, x.timegrid.indicator, w,  tuple(enumerate(sols)...))
     _symmetric_from_vector(F_)
 end
 
@@ -182,15 +198,15 @@ _get_w(w::AbstractArray) = w
 _get_w(w::NamedTuple) = w.w
 
 _make_w(prob::OEDProblem, init::Union{Real, AbstractArray{<:Real}}) = begin
-    ngrid   = length(prob.timegrid)
-    nh      = prob.predictor.dimensions.nh
+    nw = length(prob.timegrid.grids.wgrid)
+    nh = prob.predictor.dimensions.nh
 
     w_init = begin
         if isa(init, AbstractArray)
-            @assert size(init) == (nh,ngrid) "Number of measurement constraints must be equal to the number of observed variables or scalar!"
+            @assert size(init) == (nh,nw) "Number of measurement constraints must be equal to the number of observed variables or scalar!"
             init
         else
-            init*ones(typeof(init), nh,ngrid)
+            init*ones(typeof(init), nh,nw)
         end
     end
     w_init

@@ -4,6 +4,7 @@ function SciMLBase.solve(prob::OEDProblem, M::Union{<:Real, AbstractVector{<:Rea
     bounds_u0 = nothing, kwargs...)
 
     nh = prob.predictor.dimensions.nh
+    np = prob.predictor.dimensions.np
 
     if isa(M, AbstractVector)
         @assert length(M) == nh "Number of measurement constraints must be equal to the number of observed variables or scalar!"
@@ -11,10 +12,11 @@ function SciMLBase.solve(prob::OEDProblem, M::Union{<:Real, AbstractVector{<:Rea
         M = M*ones(typeof(M), nh)
     end
 
-    loss(w::W) where W = apply_criterion(criterion, prob, w; kwargs...)/nh
+    loss(w::W) where W = apply_criterion(criterion, prob, w; kwargs...)/np
 
-    m_constraints(w) = let Δt = prob.Δt
-        map(_x->Δt*sum(_x), eachrow(_get_w(w))) .- M
+    m_constraints(w) = let wgrid = prob.timegrid.grids.wgrid
+        Δw = map(x -> last(x) - first(x), wgrid)
+        map(w_h-> sum(Δw .* w_h), eachrow(_get_w(w))) .- M
     end
 
     x_init, x_lower, x_upper, x_integer = make_params(prob, w_init, integer, bounds_u0)

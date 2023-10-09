@@ -27,6 +27,7 @@ abstract type AbstractExperimentalDesign end
 abstract type AbstractInformationCriterion end
 abstract type AbstractOEDSolution end
 abstract type AbstractFisher end
+abstract type AbstractTimeGrid end
 
 build_extended_problem(::T) where T = throw(ErrorException("Augmentation for $T not implemented."))
 
@@ -46,6 +47,7 @@ include("augmentation/utils.jl")
 include("augmentation/optimize.jl")
 include("augmentation/criteria.jl")
 
+export OEDProblem
 #include("experimental_design/experimental_design.jl")
 #include("experimental_design/ode.jl")
 #include("experimental_design/dae.jl")
