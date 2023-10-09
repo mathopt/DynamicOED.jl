@@ -17,14 +17,14 @@ The resulting (equidistant) timegrids for sampling decisions and controls are me
 `simgrid`. Indicator vectors representing which indices of sampling decisions and controls
 are to be used on which section of the `simgrid` are saved in `indicator`.
 """
-function TimeGrid(tspan::Tuple{Real, Real}, Nw::Int, Nc::Int)
+function TimeGrid(tspan::Tuple{Real, Real}, Nw::Int, Nc::Int; tol = 1e-6)
     wgrid = DynamicOED.get_tgrid(tspan, Nw)
     cgrid = DynamicOED.get_tgrid(tspan, Nc)
 
     completegrid = sort(vcat(first.(wgrid),first.(cgrid), last.(wgrid), last.(cgrid)))
-    completegrid = unique(x->round(x, digits=10), completegrid) # remove items that are approximately the same
+    completegrid = completegrid[vcat(true, diff(completegrid) .> tol)]
 
-    simgrid = Tuple.([(completegrid[1:end-1][i], completegrid[2:end][i]) for i=1:length(completegrid)-1])
+    simgrid = Tuple.([(completegrid[i], completegrid[1+i]) for i=1:length(completegrid)-1])
 
     w_indicator = zeros(Int, length(simgrid))
     c_indicator = zeros(Int, length(simgrid))
@@ -38,8 +38,8 @@ function TimeGrid(tspan::Tuple{Real, Real}, Nw::Int, Nc::Int)
     end
 
     for (i, subinterval) in enumerate(simgrid)
-        for (j, w_interval) in enumerate(cgrid)
-            if (first(subinterval) >= first(w_interval) && last(subinterval) <= last(w_interval))
+        for (j, c_interval) in enumerate(cgrid)
+            if (first(subinterval) >= first(c_interval) && last(subinterval) <= last(c_interval))
                 c_indicator[i] = j
             end
         end
