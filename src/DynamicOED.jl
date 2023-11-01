@@ -5,23 +5,13 @@ using LinearAlgebra
 
 using FastDifferentiation
 using AbstractDifferentiation
-#using ForwardDiff
 using Integrals
-using ChainRulesCore
-#using ModelingToolkit
-#using ArrayInterface
-#using Symbolics
 
 using SciMLBase
 using OrdinaryDiffEq
 using SciMLSensitivity
-using Zygote
 using Nonconvex
 using NonconvexIpopt
-#using CairoMakie
-#using Reexport
-
-#@reexport using CairoMakie: save
 
 abstract type AbstractExperimentalDesign end
 abstract type AbstractInformationCriterion end
