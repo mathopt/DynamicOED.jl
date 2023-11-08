@@ -121,6 +121,39 @@ function generate_initial_variables(sys::ModelingToolkit.AbstractODESystem, tgri
     ) |> ComponentVector
 end
 
+function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem, tgrid::Timegrid, lower = false)
+    ics = get_initial_conditions(sys)
+    controls = get_control_parameters(sys)
+    measurements = get_measurement_function(sys)
+
+    initial_conditions = NamedTuple(map(ics) do ic 
+        bounds_ = getbounds(ic)
+        bound = lower ? first(bounds_) : last(bounds_)
+        (Symbol(ic), bound)
+    end)
+
+    control_variables = NamedTuple(map(controls) do control 
+        c_sym = Symbol(control)
+        idx = _get_variable_idx(tgrid, c_sym)
+        bounds_ = getbounds(control)
+        bound = lower ? first(bounds_) : last(bounds_)
+        (c_sym, [bound for _ in axes(tgrid.timegrids[idx], 1)])
+    end)
+
+
+    measurement_variables = NamedTuple(map(measurements) do w 
+        w_sym = Symbol(w)
+        idx = _get_variable_idx(tgrid, w_sym)
+        bounds_ = getbounds(w)
+        bound = lower ? first(bounds_) : last(bounds_)
+        (w_sym, [bound for _ in axes(tgrid.timegrids[idx], 1)])
+    end)
+
+    (; 
+        initial_conditions, controls = control_variables, measurements = measurement_variables
+    ) |> ComponentVector
+end
+
 struct ParameterRemake <: Function
     "The control indices inside the parameter vector"
     control_idx::Vector{Int}
@@ -137,11 +170,16 @@ struct ParameterRemake <: Function
         control_map = ModelingToolkit.varmap_to_vars(params, controls, tofloat = false)
         measure_map = ModelingToolkit.varmap_to_vars(params, measurements, tofloat = false)
         ic_map = ModelingToolkit.varmap_to_vars(params, ics, tofloat = false)
+        control_map = isnothing(control_map) ? Int[] : control_map
+        measure_map = isnothing(measure_map) ? Int[] : measure_map
+        ic_map = isnothing(ic_map) ? Int[] : ic_map
+        
         new(control_map, measure_map, ic_map)
     end 
 end
 
 function __find_and_return(i, idx, x0, xrpl)
+    isempty(idx) && return x0
     idx = findfirst(==(i), idx)
     isnothing(idx) ? x0 : xrpl[idx]
 end
@@ -160,6 +198,7 @@ struct StateRemake <: Function
 
     function StateRemake(sys::ModelingToolkit.AbstractODESystem)
         ic_state_idx = get_initial_condition_id.(get_initial_conditions(sys))
+        ic_state_idx = isnothing(ic_state_idx) ? Int[] : ic_state_idx
         new(ic_state_idx)
     end
 end
@@ -174,12 +213,12 @@ struct OEDRemake
     grid::Timegrid
     parameter_remake::ParameterRemake
     state_remake::StateRemake
+    p_prototype::ComponentVector
     
-    function OEDRemake(sys::ModelingToolkit.AbstractODESystem, tspan = ModelingToolkit.get_tspan(sys))
-        grid = Timegrid(sys, tspan)
+    function OEDRemake(sys::ModelingToolkit.AbstractODESystem, tspan = ModelingToolkit.get_tspan(sys), grid = Timegrid(sys, tspan))
         parameter_remake = ParameterRemake(sys)
         state_remake = StateRemake(sys)
-        return new(grid, parameter_remake, state_remake)
+        return new(grid, parameter_remake, state_remake, generate_initial_variables(sys, grid) .* 0.)
     end
 end
 
@@ -199,6 +238,33 @@ function (remaker::OEDRemake)(i::Int, prob::P, parameters::ComponentVector{T}, u
     return remake(prob, u0 = u0, p = p0_, tspan = tspan)
 end
 
+using OrdinaryDiffEq
+using SciMLSensitivity
 
+# TODO Adjust for better conversion of the parameter vector
+sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::AbstractVector{T}; kwargs...) where {P, A, T} = sequential_solve(
+    remaker, prob, alg, parameters + remaker.p_prototype; kwargs...
+)
 
+function sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}; kwargs...) where {P, A, T}
+    u0 = T.(copy(prob.u0))
+    p0 = T.(copy(prob.p))
+    _sequential_solve(remaker, prob, alg, parameters, u0, p0, tuple(axes(remaker.grid.timespans, 1)...); kwargs...)
+end
 
+function _sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}, u0::AbstractVector{T}, p0::AbstractVector{T}, idxs::TP; kwargs...)::Tuple{AbstractArray{T, 2}, AbstractVector{T}}  where {P,A,T, TP <: Tuple}
+    __sequential_solve(remaker, prob, alg, parameters, u0, p0, idxs...)
+end
+
+function __sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}, u0::AbstractVector{T},  p0::AbstractVector{T}, idxs::Vararg{Int}; kwargs...)  where {P,A,T}
+    sol = solve(remaker(first(idxs), prob, parameters, u0, p0), alg; kwargs...)
+    x_i = Array(sol)
+    t_i = sol.t
+    x_j, t_j = __sequential_solve(remaker, prob, alg, parameters, sol[:, end], p0, Base.tail(idxs)...; kwargs...)
+    (hcat(x_i, x_j[:, 2:end]), vcat(t_i, t_j[2:end]))
+end
+
+function __sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}, u0::AbstractVector{T},  p0::AbstractVector{T}, idxs::Int; kwargs...)  where {P,A,T}
+    sol = solve(remaker(idxs, prob, parameters, u0, p0), alg; kwargs...)
+    Array(sol), sol.t
+end

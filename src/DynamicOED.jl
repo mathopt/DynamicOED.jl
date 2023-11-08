@@ -7,10 +7,9 @@ using CommonSolve
 using ModelingToolkit
 
 using ComponentArrays
-#using ForwardDiff
-#using ChainRulesCore
-#using AbstractDifferentiation
-#using Integrals
+using OrdinaryDiffEq
+using SciMLSensitivity
+using Optimization
 
 abstract type AbstractAugmentationBackened end
 abstract type AbstractInformationCriterion end
@@ -31,7 +30,6 @@ export FisherACriterion, FisherDCriterion, FisherECriterion
 export ACriterion, DCriterion, ECriterion
 
 include("problem.jl")
-export generate_objective
 
 include("discretize.jl")
 export Timegrid

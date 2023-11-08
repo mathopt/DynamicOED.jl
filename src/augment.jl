@@ -206,7 +206,7 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem, backend:
         wi = Symbolics.variable(:w, i, T=Int)
         obsi = obs[i].lhs
         wi = setmetadata(wi, ModelingToolkit.VariableDescription, "Measurement function of $obsi")
-        wi = ModelingToolkit.setdefault(wi, 1)
+        wi = ModelingToolkit.setdefault(wi, 0.01)
         wi = set_measurement_rate(wi, get_measurement_rate(obsi))
         wi = setmetadata(wi, ModelingToolkit.VariableTunable, true)
         wi = setmetadata(wi, MeasurementFunction, true)
