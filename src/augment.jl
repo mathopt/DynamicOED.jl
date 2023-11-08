@@ -1,6 +1,15 @@
 ## Additional MetaData, Internal only
 using LinearAlgebra
 
+"""
+$(TYPEDEF)
+
+Indicator that a given variable is a measurement function. 
+
+```
+@variables w=1.0 [measurement_function=true]
+```
+"""
 struct MeasurementFunction end 
 
 Symbolics.option_to_metadata_type(::Val{:measurement_function}) = MeasurementFunction
@@ -10,6 +19,16 @@ is_measurement_function(x) = Symbolics.getmetadata(x, MeasurementFunction, false
 
 set_measurement_function(x) = Symbolics.setmetadata(x, MeasurementFunction, true)
 
+
+"""
+$(TYPEDEF)
+
+Indicator that a given variable is a measurement state. 
+
+```
+@variables z=1.0 [measurement_state=true]
+```
+"""
 struct MeasurementState end
 
 Symbolics.option_to_metadata_type(::Val{:measurement_state}) = MeasurementState
@@ -19,7 +38,15 @@ is_measurement_state(x) = Symbolics.getmetadata(x, MeasurementState, false)
 
 set_measurement_state(x) = Symbolics.setmetadata(x, MeasurementState, true)
 
+"""
+$(TYPEDEF)
 
+Indicator that a given variable is a state of the fisher information matrix. 
+
+```
+@variables F[1:3, 1:3] [fisher_state=true]
+```
+"""
 struct FisherState end
 
 Symbolics.option_to_metadata_type(::Val{:fisher_state}) = FisherState
@@ -29,6 +56,15 @@ is_fisher_state(x) = Symbolics.getmetadata(x, FisherState, false)
 set_fisher_state(x) = Symbolics.setmetadata(x, FisherState, true)
 
 
+"""
+$(TYPEDEF)
+
+Indicator that a given state variable's initial condition is unknown.
+
+```
+@variables x(t)=1.0 [variable_ic=true]
+```
+"""
 struct VariableIC end
 
 
@@ -37,7 +73,45 @@ Symbolics.option_to_metadata_type(::Val{:variable_ic}) = VariableIC
 is_initial_condition(x::Num) = is_initial_condition(Symbolics.unwrap(x))
 is_initial_condition(x) = hasmetadata(x, VariableIC) # Symbolics.getmetadata(x, VariableIC, false)
 set_initial_condition(x, i::Int) = Symbolics.setmetadata(x, VariableIC, i)
+get_initial_condition_id(x::Num) = get_initial_condition_id(Symbolics.unwrap(x))
 get_initial_condition_id(x) = Symbolics.getmetadata(x, VariableIC, 0)
+
+
+"""
+$(TYPEDEF)
+
+Indicator that a given state is subject to a fixed rate.
+Is used for modeling the rate of observation of observed variables and the rate of control for control variables.
+If the provided rate is a `Real`, it is assumed that the resulting time grid is given in fractions of the time unit. 
+If the provided rate is a `Int`, it is assumed that the resulting time grid is divided in `rate` equidistant intervals. 
+
+```
+@variables y(t) [measurement_rate=0.1] # Create a variable measured every 0.1 t
+@variables y(t) [measurement_rate=0.1] # Create a variable measured every 0.1 t
+@parameters c [input=true, measurement_rate=2] # Create a control variable which acts 2 times over the course of the simulation
+```
+"""
+struct VariableRate end
+
+Symbolics.option_to_metadata_type(::Val{:measurement_rate}) = VariableRate
+
+is_measured(x::Num) = is_measured(Symbolics.unwrap(x))
+is_measured(x) = hasmetadata(x, VariableRate) # Symbolics.getmetadata(x, VariableIC, false)
+
+set_measurement_rate(x, dt) = begin 
+    @assert dt > 0 "Measurement rate must be greater than zero!"
+    @info x dt
+    ret = Symbolics.setmetadata(x, VariableRate, dt)
+    ret
+end
+
+set_measurement_rate(x::Num, dt) = begin 
+    set_measurement_rate(Symbolics.unwrap(x), dt) |> Num
+end
+
+get_measurement_rate(x::Num) = get_measurement_rate(Symbolics.unwrap(x))
+get_measurement_rate(x) = Symbolics.getmetadata(x, VariableRate, 0.)
+
 
 ## Helper functions for constraint generation
 
@@ -78,7 +152,7 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem, backend:
     @inbounds for i in axes(x, 1)
         xi = getindex(x, i)
         if istunable(xi)
-            xi_0 = Symbolics.variable(Symbol(Symbol(xi), :("₀")), T = Symbolics.symtype(xi))
+            xi_0 = Symbolics.variable(Symbol(xi, "₀"), T = Symbolics.symtype(xi))
             xi_0 = setmetadata(xi_0, ModelingToolkit.VariableDescription, "Initial condition of state $(xi)")
             xi_0 = ModelingToolkit.setdefault(xi_0, ModelingToolkit.getdefault(xi))
             xi_0 = ModelingToolkit.toparam(xi_0)
@@ -98,6 +172,10 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem, backend:
     # The observed equations 
     obs = observed(sys)
 
+    # Check if all observed equations and controls have measurement rates associated
+    @assert all(x->is_measured(x.lhs), obs) "Not all observed equations have measurement rates associated to them!"
+    @assert all(is_measured, c) "Not all controls have rates associated to them! If you mean to apply continuous controls, please adjust your model before passing it."
+    
     @assert !isempty(obs) "Please defined `observed` equations to use optimal experimental design."
 
     np, nx, n_obs = length(p_tuneable), length(x), length(obs)
@@ -116,19 +194,38 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem, backend:
     end
 
     ## Define new variables
+    # TODO Maybe switch to variables here.
     @variables z(t)[1:n_obs]=zeros(T, n_obs) [description="Measurement State", measurement_state=true]
-    @parameters w[1:n_obs]::Int = zeros(T, n_obs) [description="Measurement function", tunable=true, measurement_function=true, bounds=(0,1)]
     @variables F(t)[1:np, 1:np]=zeros(T, (np,np)) [description="Fisher Information Matrix", fisher_state=true]
     @variables G(t)[1:nx, 1:np]=G_init [description="Sensitivity State"]
     @variables Q(t)[1:n_obs, 1:np] [description="Unweighted Fisher Information Derivative"]
-
-
+    
+    #@parameters w[1:n_obs]::Int = zeros(T, n_obs) [description="Measurement function", tunable=true, measurement_function=true, bounds=(0,1)]
+    w = Vector{Num}(undef, n_obs)
+    @inbounds for i in axes(w, 1)
+        wi = Symbolics.variable(:w, i, T=Int)
+        obsi = obs[i].lhs
+        wi = setmetadata(wi, ModelingToolkit.VariableDescription, "Measurement function of $obsi")
+        wi = ModelingToolkit.setdefault(wi, 1)
+        wi = set_measurement_rate(wi, get_measurement_rate(obsi))
+        wi = setmetadata(wi, ModelingToolkit.VariableTunable, true)
+        wi = setmetadata(wi, MeasurementFunction, true)
+        wi = setmetadata(wi, ModelingToolkit.VariableBounds, (0, 1))
+        wi = ModelingToolkit.toparam(wi)
+        w[i] = Num(wi)
+    end
     # Build the new system of deqs
     z = collect(z)
-    w = collect(w)
+    #w = collect(w)
     F = collect(F)
     G = collect(G)
     Q = collect(Q)
+    #rates = map(xi->get_measurement_rate(xi.lhs), obs)
+    #@info rates
+    ### Update the measurement rate for the measurement function
+    #w = map(axes(obs, 1)) do i 
+    #    Num(set_measurement_rate(w[i], get_measurement_rate(obs[i].lhs)))
+    #end
 
     # Create new observed function 
     idx = triu(trues(np, np))

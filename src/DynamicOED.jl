@@ -6,10 +6,11 @@ using SciMLBase
 using CommonSolve
 using ModelingToolkit
 
-using ForwardDiff
-using ChainRulesCore
-using AbstractDifferentiation
-using Integrals
+using ComponentArrays
+#using ForwardDiff
+#using ChainRulesCore
+#using AbstractDifferentiation
+#using Integrals
 
 abstract type AbstractAugmentationBackened end
 abstract type AbstractInformationCriterion end
@@ -23,10 +24,17 @@ struct MTKBackend <: AbstractAugmentationBackened end
 
 include("augment.jl")
 export OEDSystem
+
 include("fisher.jl")
 export FisherIntegrand
 export FisherACriterion, FisherDCriterion, FisherECriterion
 export ACriterion, DCriterion, ECriterion
+
+include("problem.jl")
+export generate_objective
+
+include("discretize.jl")
+export Timegrid
 #abstract type AbstractInformationCriterion end
 
 #abstract type AbstractExperimentalDesign end
