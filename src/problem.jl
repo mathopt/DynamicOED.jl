@@ -26,6 +26,22 @@ function OEDProblem(sys::ModelingToolkit.AbstractODESystem, objective::AbstractI
     OEDProblem(sys, objective, Timegrid(sys, tspan), constraints, alg, diffeqoptions)
 end
 
+
+function grid_variables(prob::OEDProblem)
+    grid = prob.timegrid
+    vars = grid.variables
+    grid_vars = []
+    @inbounds for i in eachindex(vars)
+        local_vars = zeros(Num, axes(grid.timegrids[i], 1))
+        for j in eachindex(local_vars)
+            local_vars[j] += Symbolics.variable(vars[i], j)
+        end
+        push!(grid_vars, (vars[i], local_vars))
+    end
+    return sortkeys(NamedTuple(grid_vars)) |> ComponentVector
+end
+
+
 function build_predictor(prob::OEDProblem)
     tspan = (first(first(prob.timegrid.timespans)), last(last(prob.timegrid.timespans)))
     odae_prob = ODAEProblem(prob.system, Pair[], tspan)
@@ -37,40 +53,48 @@ function build_predictor(prob::OEDProblem)
 end
 
 
+const NOCONSTRAINTS = ConstraintsSystem([], [], [], name = :no_constraints)
 
-function Optimization.OptimizationProblem(prob::OEDProblem, AD::Optimization.ADTypes.AbstractADType; integer_constraints::Bool = false)
-    tspan = (first(first(prob.timegrid.timespans)), last(last(prob.timegrid.timespans)))
-    odae_prob = ODAEProblem(prob.system, Pair[], tspan)
-    remaker = OEDRemake(prob.system, tspan, prob.timegrid)
+
+function Optimization.OptimizationProblem(prob::OEDProblem, AD::Optimization.ADTypes.AbstractADType; integer_constraints::Bool = false,
+    terminal_constraints = NOCONSTRAINTS, grid_constraints = NOCONSTRAINTS, kwargs...
+    )
     
-    solver = let remaker = remaker, odae_prob = odae_prob, alg = prob.alg, options = prob.diffeq_options
-        (p) ->  sequential_solve(remaker, odae_prob, alg, p; options...)
-    end
+    
+    solver = build_predictor(prob)
 
     f_idxs = [is_fisher_state(xi) for xi in states(prob.system)]
     n = Val(Int(sqrt(2 * sum(f_idxs) + 0.25) - 0.5))
 
     objective = let solver = solver, criterion = prob.objective, idx = f_idxs, n = n
         (p, x) -> begin
-            x, t = solver(p) 
+            x, _ = solver(p) 
             F = _symmetric_from_vector(x[idx, end], n)
             criterion(F) 
         end
     end
 
+    # Generate the constraints
+    (_, terminal_constraints_f), terminal_lb, terminal_ub = ModelingToolkit.generate_function(terminal_constraints, expression = Val{false})
+    (_, grid_constraints_f), grid_lb, grid_ub = ModelingToolkit.generate_function(grid_constraints, expression = Val{false})
 
+    # Merge the constraints
+    cons_lb = vcat(terminal_lb, grid_lb)
+    cons_ub = vcat(terminal_ub, grid_ub)
+
+    # Now build the overall function 
+    cons = let terminal_constraints_f = terminal_constraints_f, grid_constraints_f = grid_constraints_f, N_terminals = size(terminal_lb, 1), solver = solver
+        (res, p, x) -> begin
+            grid_constraints_f(res[1:N_terminals], p, x)
+            states, _ = solver(p)
+            terminal_constraints_f(res[N_terminals+1:end], states[:, end], x)
+            return res
+        end
+    end
 
     p0 = Float64.(generate_initial_variables(prob.system, prob.timegrid))
     lb = Float64.(generate_variable_bounds(prob.system, prob.timegrid, true))
     ub = Float64.(generate_variable_bounds(prob.system, prob.timegrid, false))
-
-    cons = let p_prototype = 0. * p0 
-        (res, p, x) -> begin 
-            p_ = p + p_prototype
-            res[1] = sum(p_.controls)
-            res[2] = sum(p_.measurements)
-        end
-    end
 
     integrality = Bool.(p0 * 0)
     if integer_constraints
@@ -86,6 +110,6 @@ function Optimization.OptimizationProblem(prob::OEDProblem, AD::Optimization.ADT
     )
 
     OptimizationProblem(opt_f, p0, lb = lb, ub = ub, int = integrality, 
-        lcons = [1.0, 1.0], ucons = [2.0, 3.0]
+        lcons = cons_lb, ucons = cons_ub
     )
 end

@@ -118,7 +118,7 @@ function generate_initial_variables(sys::ModelingToolkit.AbstractODESystem, tgri
 
     (; 
         initial_conditions, controls = control_variables, measurements = measurement_variables
-    ) |> ComponentVector
+    ) |> sortkeys |> ComponentVector
 end
 
 function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem, tgrid::Timegrid, lower = false)
@@ -151,7 +151,7 @@ function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem, tgrid:
 
     (; 
         initial_conditions, controls = control_variables, measurements = measurement_variables
-    ) |> ComponentVector
+    ) |> sortkeys |> ComponentVector
 end
 
 struct ParameterRemake <: Function
