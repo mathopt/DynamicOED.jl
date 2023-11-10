@@ -113,8 +113,11 @@ function Optimization.OptimizationProblem(prob::OEDProblem, AD::Optimization.ADT
     
     # Integer support
     if integer_constraints
-        integrality.controls .= true
-        integrality.measurements .= true
+        integrality.measurements .= true # Measurements are always integer
+        # Controls might be integer
+        for c in get_control_parameters(prob.system)
+            getproperty(integrality.controls, Symbol(c)) .= SymbolicUtils.symtype(c) <: Int
+        end
     end
 
     # Might be useful

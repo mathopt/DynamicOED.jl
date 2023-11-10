@@ -12,6 +12,7 @@ function continuous_predict(oed::OEDProblem, result::ComponentVector)
         prob_ = remaker(i, odae_prob, result, u0, p0)
         sol = solve(prob_, oed.alg, oed.diffeq_options...)
         u0 .= sol[:, end]
+        @info prob_.tspan
         sol
     end
 end
@@ -25,11 +26,9 @@ function extract_Qs(oed::OEDProblem, result::ComponentVector{T}, sols = continuo
     Qs = Matrix{T}[]
     @inbounds for i in eachindex(sols)
         q = map(xi->reshape(xi, n, m), sols[i][qs])
-        @info q
-        for j in eachindex(q)
-            if (i == 1 && j > 1) || (i >= 1)
+        q = i == 1 ? q : q[2:end]
+        foreach(eachindex(q)) do j
                 push!(Qs, q[j])
-            end
         end
     end
     Qs
