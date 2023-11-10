@@ -1,5 +1,3 @@
-## Additional MetaData, Internal only
-using LinearAlgebra
 
 """
 $(TYPEDEF)
@@ -16,27 +14,8 @@ Symbolics.option_to_metadata_type(::Val{:measurement_function}) = MeasurementFun
 
 is_measurement_function(x::Num) = is_measurement_function(Symbolics.unwrap(x))
 is_measurement_function(x) = Symbolics.getmetadata(x, MeasurementFunction, false)
-
 set_measurement_function(x) = Symbolics.setmetadata(x, MeasurementFunction, true)
 
-
-"""
-$(TYPEDEF)
-
-Indicator that a given variable is a measurement state. 
-
-```
-@variables z=1.0 [measurement_state=true]
-```
-"""
-struct MeasurementState end
-
-Symbolics.option_to_metadata_type(::Val{:measurement_state}) = MeasurementState
-
-is_measurement_state(x::Num) = is_measurement_state(Symbolics.unwrap(x))
-is_measurement_state(x) = Symbolics.getmetadata(x, MeasurementState, false)
-
-set_measurement_state(x) = Symbolics.setmetadata(x, MeasurementState, true)
 
 """
 $(TYPEDEF)
@@ -55,6 +34,13 @@ is_fisher_state(x::Num) = is_fisher_state(Symbolics.unwrap(x))
 is_fisher_state(x) = Symbolics.getmetadata(x, FisherState, false)
 set_fisher_state(x) = Symbolics.setmetadata(x, FisherState, true)
 
+struct UnweightedInformationGain end
+
+
+Symbolics.option_to_metadata_type(::Val{:unweighted_information_gain}) = UnweightedInformationGain
+
+is_information_gain(x::Num) = is_information_gain(Symbolics.unwrap(x))
+is_information_gain(x) = Symbolics.getmetadata(x, UnweightedInformationGain, false)
 
 """
 $(TYPEDEF)
@@ -100,7 +86,6 @@ is_measured(x) = hasmetadata(x, VariableRate) # Symbolics.getmetadata(x, Variabl
 
 set_measurement_rate(x, dt) = begin 
     @assert dt > 0 "Measurement rate must be greater than zero!"
-    @info x dt
     ret = Symbolics.setmetadata(x, VariableRate, dt)
     ret
 end
@@ -114,8 +99,6 @@ get_measurement_rate(x) = Symbolics.getmetadata(x, VariableRate, 0.)
 
 
 ## Helper functions for constraint generation
-
-get_measurement_states(sys::ModelingToolkit.AbstractSystem) = filter(is_measurement_state, states(sys)) |> Base.Fix1(collect, Num)
 get_measurement_function(sys::ModelingToolkit.AbstractSystem) = filter(is_measurement_function, parameters(sys)) |> Base.Fix1(collect, Num)
 get_initial_conditions(sys::ModelingToolkit.AbstractSystem) = filter(is_initial_condition, parameters(sys)) |> Base.Fix1(collect, Num)
 get_control_parameters(sys::ModelingToolkit.AbstractSystem) = filter(ModelingToolkit.isinput, parameters(sys)) |> Base.Fix1(collect, Num)
@@ -195,18 +178,17 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem, backend:
 
     ## Define new variables
     # TODO Maybe switch to variables here.
-    @variables z(t)[1:n_obs]=zeros(T, n_obs) [description="Measurement State", measurement_state=true]
     @variables F(t)[1:np, 1:np]=zeros(T, (np,np)) [description="Fisher Information Matrix", fisher_state=true]
     @variables G(t)[1:nx, 1:np]=G_init [description="Sensitivity State"]
-    @variables Q(t)[1:n_obs, 1:np] [description="Unweighted Fisher Information Derivative"]
-    
+    @variables Q(t)[1:n_obs, 1:np] [description="Unweighted Fisher Information Derivative", unweighted_information_gain=true]
+
     #@parameters w[1:n_obs]::Int = zeros(T, n_obs) [description="Measurement function", tunable=true, measurement_function=true, bounds=(0,1)]
     w = Vector{Num}(undef, n_obs)
     @inbounds for i in axes(w, 1)
         wi = Symbolics.variable(:w, i, T=Int)
         obsi = obs[i].lhs
         wi = setmetadata(wi, ModelingToolkit.VariableDescription, "Measurement function of $obsi")
-        wi = ModelingToolkit.setdefault(wi, 0.01)
+        wi = ModelingToolkit.setdefault(wi, 0.0)
         wi = set_measurement_rate(wi, get_measurement_rate(obsi))
         wi = setmetadata(wi, ModelingToolkit.VariableTunable, true)
         wi = setmetadata(wi, MeasurementFunction, true)
@@ -215,18 +197,10 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem, backend:
         w[i] = Num(wi)
     end
     # Build the new system of deqs
-    z = collect(z)
-    #w = collect(w)
     F = collect(F)
     G = collect(G)
     Q = collect(Q)
-    #rates = map(xi->get_measurement_rate(xi.lhs), obs)
-    #@info rates
-    ### Update the measurement rate for the measurement function
-    #w = map(axes(obs, 1)) do i 
-    #    Num(set_measurement_rate(w[i], get_measurement_rate(obs[i].lhs)))
-    #end
-
+    
     # Create new observed function 
     idx = triu(trues(np, np))
     new_obs = delta_t.(F[idx]) .~ (sum(enumerate(w)) do (i, wi)
@@ -242,21 +216,19 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem, backend:
     
     # We do not need to do anything more than push this into the equations
     # Simplify will figure out the rest
-    oed_sys = ODESystem(
+    ODESystem(
         [
             vec(dynamic_eqs); 
             vec(sens_eqs);
-            vec(delta_t.(z) .~ w);
             vec(new_obs);
             vec(Q .~ hx * G)
         ],
         t, 
-        vcat(x, z, vec(G), vec(F[idx]), vec(Q)),
+        vcat(x, vec(G), vec(F[idx]), vec(Q)),
         vcat(union(p, p_tuneable), w),
         tspan = ModelingToolkit.get_tspan(sys),
         observed = observed(sys), name = name
     )
-    structural_simplify(oed_sys)
 end
 
 

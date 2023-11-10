@@ -11,6 +11,15 @@ end
 
 
 """
+$(SIGNATURES)
+
+Returns the switching function of the corresponding criterion. 
+"""
+function get_switching_function(x) 
+    @error "The current criterion $x does not have any switching function associated!"
+end
+
+"""
 $(TYPEDEF)
 
 The Fisher A-Criterion for experimental design. 
@@ -25,6 +34,10 @@ function (c::FisherACriterion)(F::AbstractArray{T, 2}, τ::T = zero(T)) where T
    -tr(F + τ*I)
 end
 
+
+function get_switching_function(::FisherACriterion)
+    (Fs, Ps, Πs, np) -> (tr.(Ps) ./ np, Symbol("tr(P(t))"))
+end
 
 
 """
@@ -43,6 +56,18 @@ function (c::FisherDCriterion)(F::AbstractArray{T, 2}, τ::T = zero(T)) where T
 end
 
 
+function get_switching_function(::FisherDCriterion)
+    (F, Ps, Πs, np) -> begin 
+        Finv = inv(F)
+        detF = det(F) / np
+        f_val = map(Ps) do Pi 
+            detF .* sum(Finv .* Pi)
+        end
+        (f_val, Symbol("det(F(∞))(∑ C(∞) ⊙ P(t))"))
+    end
+end
+
+
 """
 $(TYPEDEF)
 
@@ -58,6 +83,17 @@ function (c::FisherECriterion)(F::AbstractArray{T, 2}, τ::T = zero(T)) where T
    -minimum(abs.(eigvals(F + τ*I)))
 end
 
+function get_switching_function(::FisherECriterion)
+    (F, Ps, Πs, np) -> begin 
+        eigF = eigen(F)
+        λ_min, id_min = findmin(eigF.values)
+        v = eigF.vectors[:, id_min:id_min]
+        f_val = map(Ps) do Pi 
+            only(v'*Pi*v)
+        end
+        (f_val, Symbol("vᵀP(t)v"))
+    end
+end
 
 """
 $(TYPEDEF)
@@ -74,6 +110,12 @@ struct ACriterion <: AbstractInformationCriterion end
 
 function (c::ACriterion)(F::AbstractArray{T, 2}, τ::T = zero(T)) where T
     tr(inv(F+τ*I))
+end
+
+function get_switching_function(::ACriterion)
+    (F, Ps, Πs, np) -> begin 
+        (tr.(Πs) ./ np, Symbol("tr(Π(t))"))
+    end
 end
 
 """
@@ -93,6 +135,17 @@ function (c::DCriterion)(F::AbstractArray{T, 2}, τ::T = zero(T)) where T
     inv(det(F+τ*I))
 end
 
+function get_switching_function(::DCriterion)
+    (F, Ps, Πs, np) -> begin 
+        detC = inv(det(F)) / np
+        f_val = map(Πs) do Π 
+            detC .* sum(F .* Π)
+        end
+        (f_val, Symbol("det(C(∞))(∑ F(∞) ⊙ Π(t))"))
+    end
+end
+
+
 
 
 """
@@ -111,3 +164,20 @@ struct ECriterion <: AbstractInformationCriterion end
 function (c::ECriterion)(F::AbstractArray{T, 2}, τ::T = zero(T)) where T
     maximum(abs.(eigvals(inv(F+τ*I))))
 end
+
+function get_switching_function(::ECriterion)
+    # We use the fact that λ(inv(F)) = inv(λ)(F)  for regular matrices
+    # the eigenvectors stay the same.
+
+    (F, Ps, Πs, np) -> begin 
+        eigF = eigen(F) 
+        id_min = argmin(eigF.values)
+        v = eigF.vectors[:, id_min:id_min]
+        f_val = map(Πs) do Π 
+            v'*Π*v
+        end
+        (f_val, Symbol("vᵀΠ(t)v"))
+    end
+end
+
+

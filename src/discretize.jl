@@ -257,14 +257,15 @@ function _sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::Comp
 end
 
 function __sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}, u0::AbstractVector{T},  p0::AbstractVector{T}, idxs::Vararg{Int}; kwargs...)  where {P,A,T}
-    sol = solve(remaker(first(idxs), prob, parameters, u0, p0), alg; kwargs...)
+    id = first(idxs)
+    sol = solve(remaker(id, prob, parameters, u0, p0), alg; saveat = remaker.grid.timespans[id], kwargs...)
     x_i = Array(sol)
     t_i = sol.t
     x_j, t_j = __sequential_solve(remaker, prob, alg, parameters, sol[:, end], p0, Base.tail(idxs)...; kwargs...)
-    (hcat(x_i, x_j[:, 2:end]), vcat(t_i, t_j[2:end]))
+    return (hcat(x_i, x_j[:, 2:end]), vcat(t_i, t_j[2:end]))
 end
 
 function __sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}, u0::AbstractVector{T},  p0::AbstractVector{T}, idxs::Int; kwargs...)  where {P,A,T}
-    sol = solve(remaker(idxs, prob, parameters, u0, p0), alg; kwargs...)
+    sol = solve(remaker(idxs, prob, parameters, u0, p0), alg; saveat = remaker.grid.timespans[idxs], kwargs...)
     Array(sol), sol.t
 end

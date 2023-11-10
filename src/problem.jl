@@ -26,21 +26,40 @@ function OEDProblem(sys::ModelingToolkit.AbstractODESystem, objective::AbstractI
     OEDProblem(sys, objective, Timegrid(sys, tspan), constraints, alg, diffeqoptions)
 end
 
-
-function grid_variables(prob::OEDProblem)
+function ModelingToolkit.states(prob::OEDProblem)
     grid = prob.timegrid
     vars = grid.variables
     grid_vars = []
+    
     @inbounds for i in eachindex(vars)
-        local_vars = zeros(Num, axes(grid.timegrids[i], 1))
-        for j in eachindex(local_vars)
-            local_vars[j] += Symbolics.variable(vars[i], j)
-        end
-        push!(grid_vars, (vars[i], local_vars))
+        N = size(grid.timegrids[i], 1)
+        push!(
+            grid_vars, (
+                vars[i], Symbolics.variables(vars[i], 1:N)
+            )
+        )
     end
-    return sortkeys(NamedTuple(grid_vars)) |> ComponentVector
+
+
+    return sortkeys(NamedTuple(grid_vars)) 
 end
 
+function get_timegrids(prob::OEDProblem)
+    grid = prob.timegrid
+    vars = grid.variables
+    grid_vars = []
+    
+    @inbounds for i in eachindex(vars)
+        push!(
+            grid_vars, (
+                vars[i], copy(grid.timegrids[i])
+            )
+        )
+    end
+
+
+    return sortkeys(NamedTuple(grid_vars))
+end
 
 function build_predictor(prob::OEDProblem)
     tspan = (first(first(prob.timegrid.timespans)), last(last(prob.timegrid.timespans)))
@@ -52,20 +71,22 @@ function build_predictor(prob::OEDProblem)
     end
 end
 
+get_initial_variables(prob::OEDProblem) = generate_initial_variables(prob.system, prob.timegrid)
 
-const NOCONSTRAINTS = ConstraintsSystem([], [], [], name = :no_constraints)
 
-
-function Optimization.OptimizationProblem(prob::OEDProblem, AD::Optimization.ADTypes.AbstractADType; integer_constraints::Bool = false,
-    terminal_constraints = NOCONSTRAINTS, grid_constraints = NOCONSTRAINTS, kwargs...
-    )
+function Optimization.OptimizationProblem(prob::OEDProblem, AD::Optimization.ADTypes.AbstractADType, u0::ComponentVector = get_initial_variables(prob), p = SciMLBase.NullParameters(); integer_constraints::Bool = false,
+    constraints = nothing, variable_type::Type{T} = Float64, kwargs...
+    ) where T
+    u0 = T.(u0)
+    p = !isa(p, SciMLBase.NullParameters) ?  T.(p) : p
     
-    
+    # A simple predictor
     solver = build_predictor(prob)
 
     f_idxs = [is_fisher_state(xi) for xi in states(prob.system)]
     n = Val(Int(sqrt(2 * sum(f_idxs) + 0.25) - 0.5))
 
+    # Our objective function
     objective = let solver = solver, criterion = prob.objective, idx = f_idxs, n = n
         (p, x) -> begin
             x, _ = solver(p) 
@@ -74,42 +95,40 @@ function Optimization.OptimizationProblem(prob::OEDProblem, AD::Optimization.ADT
         end
     end
 
-    # Generate the constraints
-    (_, terminal_constraints_f), terminal_lb, terminal_ub = ModelingToolkit.generate_function(terminal_constraints, expression = Val{false})
-    (_, grid_constraints_f), grid_lb, grid_ub = ModelingToolkit.generate_function(grid_constraints, expression = Val{false})
-
-    # Merge the constraints
-    cons_lb = vcat(terminal_lb, grid_lb)
-    cons_ub = vcat(terminal_ub, grid_ub)
-
-    # Now build the overall function 
-    cons = let terminal_constraints_f = terminal_constraints_f, grid_constraints_f = grid_constraints_f, N_terminals = size(terminal_lb, 1), solver = solver
-        (res, p, x) -> begin
-            grid_constraints_f(res[1:N_terminals], p, x)
-            states, _ = solver(p)
-            terminal_constraints_f(res[N_terminals+1:end], states[:, end], x)
-            return res
-        end
+    # Generate the constraints, if possible
+    if isa(constraints, ConstraintsSystem)
+        (_, cons), cons_lb, cons_ub = ModelingToolkit.generate_function(constraints, expression = Val{false})
+    else
+        cons = cons_lb = cons_ub = nothing
     end
 
-    p0 = Float64.(generate_initial_variables(prob.system, prob.timegrid))
-    lb = Float64.(generate_variable_bounds(prob.system, prob.timegrid, true))
-    ub = Float64.(generate_variable_bounds(prob.system, prob.timegrid, false))
+    # Bounds based on the variables
+    lb = T.(generate_variable_bounds(prob.system, prob.timegrid, true))
+    ub = T.(generate_variable_bounds(prob.system, prob.timegrid, false))
 
-    integrality = Bool.(p0 * 0)
+    @assert all(lb .<= u0 .<= ub) "The initial variables are not within the bounds. Please check the input!"
+
+    # No integers
+    integrality = Bool.(u0 * 0) 
+    
+    # Integer support
     if integer_constraints
         integrality.controls .= true
         integrality.measurements .= true
     end
+
+    # Might be useful
     syms = Symbol.(vcat(get_initial_conditions(prob.system), get_control_parameters(prob.system), get_measurement_function(prob.system)))
     
+    # Declare the Optimization function 
     opt_f = OptimizationFunction(
         objective, AD; 
         syms = syms,
         cons = cons,
     )
 
-    OptimizationProblem(opt_f, p0, lb = lb, ub = ub, int = integrality, 
+    # Return the optimization problem
+    OptimizationProblem(opt_f, u0, p, lb = lb, ub = ub, int = integrality, 
         lcons = cons_lb, ucons = cons_ub
     )
 end
