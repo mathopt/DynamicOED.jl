@@ -12,7 +12,6 @@ function continuous_predict(oed::OEDProblem, result::ComponentVector)
         prob_ = remaker(i, odae_prob, result, u0, p0)
         sol = solve(prob_, oed.alg, oed.diffeq_options...)
         u0 .= sol[:, end]
-        @info prob_.tspan
         sol
     end
 end
@@ -58,6 +57,6 @@ function compute_information_gain(oed::OEDProblem, result::ComponentVector{T}) w
         Finv*Ps[i]*Finv
     end
     # np is simply the sum over all measurements
-    np = sum(map(is_measurement_function, parameters(oed.system)))
+    np = sum(istunable, parameters(oed.system))
     (F, Ps, Πs, np, sols)
 end
