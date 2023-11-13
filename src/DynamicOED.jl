@@ -30,7 +30,6 @@ include("augment.jl")
 export OEDSystem
 
 include("fisher.jl")
-export FisherIntegrand
 export FisherACriterion, FisherDCriterion, FisherECriterion
 export ACriterion, DCriterion, ECriterion
 
