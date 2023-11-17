@@ -140,6 +140,7 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem, backend:
             xi_0 = ModelingToolkit.setdefault(xi_0, ModelingToolkit.getdefault(xi))
             xi_0 = ModelingToolkit.toparam(xi_0)
             xi_0 = setmetadata(xi_0, ModelingToolkit.VariableTunable, true)
+            xi_0 = setmetadata(xi_0, ModelingToolkit.VariableBounds, getbounds(xi))
             xi_0 = set_initial_condition(xi_0, i)
             push!(unknown_initial_conditions, i)
             push!(x_ic, Symbolics.unwrap(xi_0))
