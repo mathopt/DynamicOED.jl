@@ -27,22 +27,36 @@ function OEDProblem(sys::ModelingToolkit.AbstractODESystem, objective::AbstractI
 end
 
 function ModelingToolkit.states(prob::OEDProblem)
-    grid = prob.timegrid
-    vars = grid.variables
-    grid_vars = []
-    
-    @inbounds for i in eachindex(vars)
-        N = size(grid.timegrids[i], 1)
-        push!(
-            grid_vars, (
-                vars[i], Symbolics.variables(vars[i], 1:N)
-            )
-        )
-    end
+    tgrid = prob.timegrid
+    sys = prob.system
+    ics = get_initial_conditions(sys)
+    controls = get_control_parameters(sys)
+    measurements = get_measurement_function(sys)
+
+    initial_conditions = NamedTuple(map(ics) do ic 
+        (Symbol(ic), ic)
+    end)
+
+    control_variables = NamedTuple(map(controls) do control 
+        c_sym = Symbol(control)
+        idx = _get_variable_idx(tgrid, c_sym)
+        N = size(tgrid.timegrids[idx], 1)
+        (c_sym, Symbolics.variables(csym, 1:N))
+    end)
 
 
-    return sortkeys(NamedTuple(grid_vars)) 
+    measurement_variables = NamedTuple(map(measurements) do w 
+        w_sym = Symbol(w)
+        idx = _get_variable_idx(tgrid, w_sym)
+        N = size(tgrid.timegrids[idx], 1)
+        (w_sym, Symbolics.variables(w_sym, 1:N))
+    end)
+
+    (; 
+        initial_conditions, controls = control_variables, measurements = measurement_variables
+    ) |> sortkeys |> ComponentVector
 end
+
 
 function get_timegrids(prob::OEDProblem)
     grid = prob.timegrid
