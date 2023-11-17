@@ -49,9 +49,9 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
     end
 
     constraints = [
-        0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.w₁),
-        0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.w₂),
-        1.0 ≳ sum(Δts.u .* optimization_variables.u),
+        0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₁),
+        0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₂),
+        1.0 ≳ sum(Δts.u .* optimization_variables.controls.u),
     ]
 
     # Define an MTK Constraint system
