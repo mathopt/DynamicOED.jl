@@ -75,8 +75,10 @@ get_initial_variables(prob::OEDProblem) = generate_initial_variables(prob.system
 
 
 function Optimization.OptimizationProblem(prob::OEDProblem, AD::Optimization.ADTypes.AbstractADType, u0::ComponentVector = get_initial_variables(prob), p = SciMLBase.NullParameters(); integer_constraints::Bool = false,
-    constraints = nothing, variable_type::Type{T} = Float64, kwargs...
+    constraints = nothing, variable_type::Type{T} = Float64, tau_min::Real = 1e-5, kwargs...
     ) where T
+    @assert tau_min >= eps() "Tau must be greater than zero."
+    tau_min = T(tau_min)
     u0 = T.(u0)
     p = !isa(p, SciMLBase.NullParameters) ?  T.(p) : p
     
@@ -87,11 +89,11 @@ function Optimization.OptimizationProblem(prob::OEDProblem, AD::Optimization.ADT
     n = Val(Int(sqrt(2 * sum(f_idxs) + 0.25) - 0.5))
 
     # Our objective function
-    objective = let solver = solver, criterion = prob.objective, idx = f_idxs, n = n
+    objective = let solver = solver, criterion = prob.objective, idx = f_idxs, n = n, tau = tau_min
         (p, x) -> begin
             x, _ = solver(p) 
             F = _symmetric_from_vector(x[idx, end], n)
-            criterion(F) 
+            criterion(F, tau) 
         end
     end
 

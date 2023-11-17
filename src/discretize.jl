@@ -20,6 +20,15 @@ function _generate_timegrid(N::Int, tspan::Tuple{Real, Real})
     _generate_timegrid(Δt, tspan)
 end
 
+"""
+$(TYPEDEF)
+
+A structure for holding a multi-variable time grid. 
+
+# Fields
+
+$(FIELDS)
+"""
 struct Timegrid{V,I,G,T}
     "The variables"
     variables::V
@@ -238,8 +247,6 @@ function (remaker::OEDRemake)(i::Int, prob::P, parameters::ComponentVector{T}, u
     return remake(prob, u0 = u0, p = p0_, tspan = tspan)
 end
 
-using OrdinaryDiffEq
-using SciMLSensitivity
 
 # TODO Adjust for better conversion of the parameter vector
 sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::AbstractVector{T}; kwargs...) where {P, A, T} = sequential_solve(

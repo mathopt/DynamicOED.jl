@@ -145,7 +145,10 @@ function get_switching_function(::DCriterion)
     end
 end
 
-
+# For ForwardDiff
+function (c::AbstractInformationCriterion)(F::AbstractArray{T, 2}, τ::R) where {T, R}
+    c(F, T(τ))
+end
 
 
 """
