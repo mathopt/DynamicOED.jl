@@ -37,5 +37,5 @@ end
     # Test for controls (integer + relaxed) and ic
     @safetestset "LotkaVolterra" begin include("./references/LotkaVolterra.jl") end
     ## Test for DAE support
-    #@safetestset "Rober" begin end
+    @safetestset "Rober" begin include("./references/Rober.jl") end
 end

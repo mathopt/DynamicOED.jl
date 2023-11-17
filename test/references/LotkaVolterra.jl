@@ -98,10 +98,10 @@ end
 
 
     constraints = [
-        0 ≲ 0.2 .- 0.5*sum(Δts.w₁ .* optimization_variables.w₁), 
-        0 ≲ 0.2 .- 0.5*sum(Δts.w₁ .* optimization_variables.w₂), 
-        2. ≳ sum(optimization_variables.u),
-        sum(optimization_variables.u) ≳ 1.
+        0 ≲ 0.2 .- 0.5*sum(Δts.w₁ .* optimization_variables.measurements.w₁), 
+        0 ≲ 0.2 .- 0.5*sum(Δts.w₁ .* optimization_variables.measurements.w₂), 
+        2. ≳ sum(optimization_variables.controls.u),
+        sum(optimization_variables.controls.u) ≳ 1.
     ]
         
     # Define an MTK Constraint system
