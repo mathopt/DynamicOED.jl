@@ -1,10 +1,5 @@
-using TestEnv
-TestEnv.activate()
-
 using Test
 using SafeTestsets
-using Aqua
-using DynamicOED
 
 # Automatic Quality test
 @safetestset "Aqua.jl" begin
