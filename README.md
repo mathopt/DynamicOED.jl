@@ -4,7 +4,7 @@
 
 Repository for optimal experimental design for differential equations using optimal control.
 
-`DynamicOED.jl` extends multiple packages of Julia's [SciML](https://sciml.ai/) ecosystem, especially [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl), [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl) and [Optimization.jl](https://github.com/SciML/Optimization.jl). 
+`DynamicOED.jl` uses multiple packages of Julia's [SciML](https://sciml.ai/) ecosystem, especially [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl), [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl) and [Optimization.jl](https://github.com/SciML/Optimization.jl) to define [optimal experimental design problems using optimal control](https://doi.org/10.1137/110835098).
 
 Currently we support both Ordinary Differential Equations and Differential Algebraic Equations. 
 
