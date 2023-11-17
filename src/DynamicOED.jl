@@ -16,8 +16,9 @@ abstract type AbstractAugmentationBackened end
 abstract type AbstractInformationCriterion end
 
 # Credit to https://discourse.julialang.org/t/sort-keys-of-namedtuple/94630/3
-@generated sortkeys(nt::NamedTuple{KS}) where {KS} = :( NamedTuple{$(Tuple(sort(collect(KS))))}(nt) )
-
+@generated sortkeys(nt::NamedTuple{KS}) where {KS} = :(NamedTuple{
+    $(Tuple(sort(collect(KS)))),
+}(nt))
 
 """
 $(TYPEDEF)

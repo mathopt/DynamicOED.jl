@@ -4,9 +4,9 @@ function generate_timegrid(x::Num, tspan::Tuple)
     _generate_timegrid(Δt, tspan)
 end
 
-function _generate_timegrid(Δt::T, tspan::Tuple{Real, Real}) where T <: Real
-    @assert Δt > 0 "Stepsize must be greater than 0."
-    @assert Δt < -(reverse(tspan)...) "Stepsize must be smaller than total time interval."
+function _generate_timegrid(Δt::T, tspan::Tuple{Real, Real}) where {T <: Real}
+    @assert Δt>0 "Stepsize must be greater than 0."
+    @assert Δt<-(reverse(tspan)...) "Stepsize must be smaller than total time interval."
     t0, tinf = tspan
     timepoints = collect(T, t0:Δt:tinf)
     if timepoints[end] != tinf
@@ -16,7 +16,7 @@ function _generate_timegrid(Δt::T, tspan::Tuple{Real, Real}) where T <: Real
 end
 
 function _generate_timegrid(N::Int, tspan::Tuple{Real, Real})
-    Δt = -(reverse(tspan)...)/N
+    Δt = -(reverse(tspan)...) / N
     _generate_timegrid(Δt, tspan)
 end
 
@@ -29,7 +29,7 @@ A structure for holding a multi-variable time grid.
 
 $(FIELDS)
 """
-struct Timegrid{V,I,G,T}
+struct Timegrid{V, I, G, T}
     "The variables"
     variables::V
     "The indicator for switching variables"
@@ -51,14 +51,19 @@ function Timegrid(tspan::Tuple, x::Num...; time_tolerance::Real = 1e-6)
     sort!(_completegrid)
     unique!(_completegrid)
 
-    completegrid = [tspan_ for tspan_ in zip(_completegrid[1:end-1], _completegrid[2:end]) if abs(-(tspan_...)) >= time_tolerance]
-    
+    completegrid = [tspan_
+                    for tspan_ in zip(_completegrid[1:(end - 1)], _completegrid[2:end])
+                        if abs(-(tspan_...)) >= time_tolerance]
+
     timegrids = map(_timegrids) do grid
-        [tspan_ for tspan_ in zip(grid[1:end-1], grid[2:end]) if abs(-(tspan_...)) >= time_tolerance]
+        [tspan_ for tspan_ in zip(grid[1:(end - 1)], grid[2:end])
+             if abs(-(tspan_...)) >= time_tolerance]
     end
 
     indicators = zeros(Int, length(x), size(completegrid, 1))
-    @inbounds for i in axes(indicators, 1), j in axes(indicators, 2), k in axes(timegrids[i], 1)
+    @inbounds for i in axes(indicators, 1), j in axes(indicators, 2),
+        k in axes(timegrids[i], 1)
+
         t_start, t_stop = completegrid[j]
         t_min, t_max = timegrids[i][k]
         if t_start >= t_min && t_stop <= t_max
@@ -66,12 +71,11 @@ function Timegrid(tspan::Tuple, x::Num...; time_tolerance::Real = 1e-6)
         end
     end
 
-    return Timegrid(
-        Symbol.(x), indicators, timegrids, completegrid
-    )
+    return Timegrid(Symbol.(x), indicators, timegrids, completegrid)
 end
 
-function Timegrid(sys::ModelingToolkit.AbstractODESystem, tspan = ModelingToolkit.get_tspan(sys))
+function Timegrid(sys::ModelingToolkit.AbstractODESystem,
+        tspan = ModelingToolkit.get_tspan(sys))
     c = get_control_parameters(sys)
     w = get_measurement_function(sys)
     Timegrid(tspan, c..., w...)
@@ -80,13 +84,13 @@ end
 @inline get_tspan(grid::Timegrid, i::Int) = getindex(grid.timespans, i)
 @inline _get_variable_idx(grid::Timegrid, var::Symbol) = findfirst(==(var), grid.variables)
 
-function get_variable_idx(grid::Timegrid, var::Symbol, i::Int) 
+function get_variable_idx(grid::Timegrid, var::Symbol, i::Int)
     id = _get_variable_idx(grid, var)
     isnothing(id) && return 1 # We always assume here that this will work 
-    return grid.indicators[id, i]    
+    return grid.indicators[id, i]
 end
 
-function get_vars_from_grid(grid::Timegrid, i::Int, nt::NamedTuple{names}) where names
+function get_vars_from_grid(grid::Timegrid, i::Int, nt::NamedTuple{names}) where {names}
     map(names) do name
         idx = get_variable_idx(grid, name, i)
         getindex(getfield(nt, name), idx)
@@ -102,46 +106,46 @@ end
 # Controls -> Need to be merged with the parameter defaults
 # Measurements -> Need to be merged with the parameter defaults
 
-
 function generate_initial_variables(sys::ModelingToolkit.AbstractODESystem, tgrid::Timegrid)
     ics = get_initial_conditions(sys)
     controls = get_control_parameters(sys)
     measurements = get_measurement_function(sys)
 
-    initial_conditions = NamedTuple(map(ics) do ic 
+    initial_conditions = NamedTuple(map(ics) do ic
         (Symbol(ic), Symbolics.getdefaultval(ic))
     end)
 
-    control_variables = NamedTuple(map(controls) do control 
+    control_variables = NamedTuple(map(controls) do control
         c_sym = Symbol(control)
         idx = _get_variable_idx(tgrid, c_sym)
         (c_sym, [Symbolics.getdefaultval(control) for _ in axes(tgrid.timegrids[idx], 1)])
     end)
 
-
-    measurement_variables = NamedTuple(map(measurements) do w 
+    measurement_variables = NamedTuple(map(measurements) do w
         w_sym = Symbol(w)
         idx = _get_variable_idx(tgrid, w_sym)
         (w_sym, [Symbolics.getdefaultval(w) for _ in axes(tgrid.timegrids[idx], 1)])
     end)
 
-    (; 
-        initial_conditions, controls = control_variables, measurements = measurement_variables
-    ) |> sortkeys |> ComponentVector
+    (;
+        initial_conditions, controls = control_variables,
+        measurements = measurement_variables) |> sortkeys |> ComponentVector
 end
 
-function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem, tgrid::Timegrid, lower = false)
+function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem,
+        tgrid::Timegrid,
+        lower = false)
     ics = get_initial_conditions(sys)
     controls = get_control_parameters(sys)
     measurements = get_measurement_function(sys)
 
-    initial_conditions = NamedTuple(map(ics) do ic 
+    initial_conditions = NamedTuple(map(ics) do ic
         bounds_ = getbounds(ic)
         bound = lower ? first(bounds_) : last(bounds_)
         (Symbol(ic), bound)
     end)
 
-    control_variables = NamedTuple(map(controls) do control 
+    control_variables = NamedTuple(map(controls) do control
         c_sym = Symbol(control)
         idx = _get_variable_idx(tgrid, c_sym)
         bounds_ = getbounds(control)
@@ -149,8 +153,7 @@ function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem, tgrid:
         (c_sym, [bound for _ in axes(tgrid.timegrids[idx], 1)])
     end)
 
-
-    measurement_variables = NamedTuple(map(measurements) do w 
+    measurement_variables = NamedTuple(map(measurements) do w
         w_sym = Symbol(w)
         idx = _get_variable_idx(tgrid, w_sym)
         bounds_ = getbounds(w)
@@ -158,9 +161,9 @@ function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem, tgrid:
         (w_sym, [bound for _ in axes(tgrid.timegrids[idx], 1)])
     end)
 
-    (; 
-        initial_conditions, controls = control_variables, measurements = measurement_variables
-    ) |> sortkeys |> ComponentVector
+    (;
+        initial_conditions, controls = control_variables,
+        measurements = measurement_variables) |> sortkeys |> ComponentVector
 end
 
 struct ParameterRemake <: Function
@@ -182,9 +185,9 @@ struct ParameterRemake <: Function
         control_map = isnothing(control_map) ? Int[] : control_map
         measure_map = isnothing(measure_map) ? Int[] : measure_map
         ic_map = isnothing(ic_map) ? Int[] : ic_map
-        
+
         new(control_map, measure_map, ic_map)
-    end 
+    end
 end
 
 function __find_and_return(i, idx, x0, xrpl)
@@ -194,15 +197,14 @@ function __find_and_return(i, idx, x0, xrpl)
 end
 
 function (remake::ParameterRemake)(p0::AbstractVector, measurements, controls, ics)
-    map(eachindex(p0)) do i 
+    map(eachindex(p0)) do i
         val = __find_and_return(i, remake.measure_idx, p0[i], measurements)
         val = __find_and_return(i, remake.control_idx, val, controls)
         __find_and_return(i, remake.ic_param_idx, val, ics)
     end
 end
 
-
-struct StateRemake <: Function 
+struct StateRemake <: Function
     ic_state_idx::Vector{Int}
 
     function StateRemake(sys::ModelingToolkit.AbstractODESystem)
@@ -213,8 +215,8 @@ struct StateRemake <: Function
 end
 
 function (remake::StateRemake)(u0::AbstractVector, ics)
-    map(eachindex(u0)) do i 
-       __find_and_return(i, remake.ic_state_idx, u0[i], ics)
+    map(eachindex(u0)) do i
+        __find_and_return(i, remake.ic_state_idx, u0[i], ics)
     end
 end
 
@@ -223,15 +225,24 @@ struct OEDRemake
     parameter_remake::ParameterRemake
     state_remake::StateRemake
     p_prototype::ComponentVector
-    
-    function OEDRemake(sys::ModelingToolkit.AbstractODESystem, tspan = ModelingToolkit.get_tspan(sys), grid = Timegrid(sys, tspan))
+
+    function OEDRemake(sys::ModelingToolkit.AbstractODESystem,
+            tspan = ModelingToolkit.get_tspan(sys),
+            grid = Timegrid(sys, tspan))
         parameter_remake = ParameterRemake(sys)
         state_remake = StateRemake(sys)
-        return new(grid, parameter_remake, state_remake, generate_initial_variables(sys, grid) .* 0.)
+        return new(grid,
+            parameter_remake,
+            state_remake,
+            generate_initial_variables(sys, grid) .* 0.0)
     end
 end
 
-function (remaker::OEDRemake)(i::Int, prob::P, parameters::ComponentVector{T}, u0::AbstractVector = prob.u0, p0::AbstractVector = prob.p) where {P, T}
+function (remaker::OEDRemake)(i::Int,
+        prob::P,
+        parameters::ComponentVector{T},
+        u0::AbstractVector = prob.u0,
+        p0::AbstractVector = prob.p) where {P, T}
     ics = getproperty(parameters, :initial_conditions) |> NamedTuple
     controls = getproperty(parameters, :controls) |> NamedTuple
     measurements = getproperty(parameters, :measurements) |> NamedTuple
@@ -247,32 +258,80 @@ function (remaker::OEDRemake)(i::Int, prob::P, parameters::ComponentVector{T}, u
     return remake(prob, u0 = u0, p = p0_, tspan = tspan)
 end
 
-
 # TODO Adjust for better conversion of the parameter vector
-sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::AbstractVector{T}; kwargs...) where {P, A, T} = sequential_solve(
-    remaker, prob, alg, parameters + remaker.p_prototype; kwargs...
-)
-
-function sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}; kwargs...) where {P, A, T}
-    u0 = T.(copy(prob.u0))
-    p0 = T.(copy(prob.p))
-    _sequential_solve(remaker, prob, alg, parameters, u0, p0, tuple(axes(remaker.grid.timespans, 1)...); kwargs...)
+function sequential_solve(remaker::OEDRemake,
+        prob::P,
+        alg::A,
+        parameters::AbstractVector{T};
+        kwargs...) where {P, A, T}
+    sequential_solve(remaker, prob, alg, parameters + remaker.p_prototype; kwargs...)
 end
 
-function _sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}, u0::AbstractVector{T}, p0::AbstractVector{T}, idxs::TP; kwargs...)::Tuple{AbstractArray{T, 2}, AbstractVector{T}}  where {P,A,T, TP <: Tuple}
+function sequential_solve(remaker::OEDRemake,
+        prob::P,
+        alg::A,
+        parameters::ComponentVector{T};
+        kwargs...) where {P, A, T}
+    u0 = T.(copy(prob.u0))
+    p0 = T.(copy(prob.p))
+    _sequential_solve(remaker,
+        prob,
+        alg,
+        parameters,
+        u0,
+        p0,
+        tuple(axes(remaker.grid.timespans, 1)...);
+        kwargs...)
+end
+
+function _sequential_solve(remaker::OEDRemake,
+        prob::P,
+        alg::A,
+        parameters::ComponentVector{T},
+        u0::AbstractVector{T},
+        p0::AbstractVector{T},
+        idxs::TP;
+        kwargs...)::Tuple{AbstractArray{T, 2}, AbstractVector{T}} where {P, A, T, TP <: Tuple}
     __sequential_solve(remaker, prob, alg, parameters, u0, p0, idxs...)
 end
 
-function __sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}, u0::AbstractVector{T},  p0::AbstractVector{T}, idxs::Vararg{Int}; kwargs...)  where {P,A,T}
+function __sequential_solve(remaker::OEDRemake,
+        prob::P,
+        alg::A,
+        parameters::ComponentVector{T},
+        u0::AbstractVector{T},
+        p0::AbstractVector{T},
+        idxs::Vararg{Int};
+        kwargs...) where {P, A, T}
     id = first(idxs)
-    sol = solve(remaker(id, prob, parameters, u0, p0), alg; saveat = remaker.grid.timespans[id], kwargs...)
+    sol = solve(remaker(id, prob, parameters, u0, p0),
+        alg;
+        saveat = remaker.grid.timespans[id],
+        kwargs...)
     x_i = Array(sol)
     t_i = sol.t
-    x_j, t_j = __sequential_solve(remaker, prob, alg, parameters, sol[:, end], p0, Base.tail(idxs)...; kwargs...)
+    x_j, t_j = __sequential_solve(remaker,
+        prob,
+        alg,
+        parameters,
+        sol[:, end],
+        p0,
+        Base.tail(idxs)...;
+        kwargs...)
     return (hcat(x_i, x_j[:, 2:end]), vcat(t_i, t_j[2:end]))
 end
 
-function __sequential_solve(remaker::OEDRemake, prob::P, alg::A, parameters::ComponentVector{T}, u0::AbstractVector{T},  p0::AbstractVector{T}, idxs::Int; kwargs...)  where {P,A,T}
-    sol = solve(remaker(idxs, prob, parameters, u0, p0), alg; saveat = remaker.grid.timespans[idxs], kwargs...)
+function __sequential_solve(remaker::OEDRemake,
+        prob::P,
+        alg::A,
+        parameters::ComponentVector{T},
+        u0::AbstractVector{T},
+        p0::AbstractVector{T},
+        idxs::Int;
+        kwargs...) where {P, A, T}
+    sol = solve(remaker(idxs, prob, parameters, u0, p0),
+        alg;
+        saveat = remaker.grid.timespans[idxs],
+        kwargs...)
     Array(sol), sol.t
 end
