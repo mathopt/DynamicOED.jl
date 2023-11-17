@@ -47,7 +47,7 @@ function ModelingToolkit.states(prob::OEDProblem)
         c_sym = Symbol(control)
         idx = _get_variable_idx(tgrid, c_sym)
         N = size(tgrid.timegrids[idx], 1)
-        (c_sym, Symbolics.variables(csym, 1:N))
+        (c_sym, Symbolics.variables(c_sym, 1:N))
     end)
 
     measurement_variables = NamedTuple(map(measurements) do w
