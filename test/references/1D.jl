@@ -44,7 +44,7 @@ oed = structural_simplify(oed)
 
 
         constraints = [
-            0 ≲ 0.2 .- 0.5*sum(Δts.w₁ .* optimization_variables.w₁), 
+            0 ≲ 0.2 .- 0.5*sum(Δts.w₁ .* optimization_variables.measurements.w₁), 
         ]
         
         # Define an MTK Constraint system
@@ -76,7 +76,7 @@ end
 
 
         constraints = [
-            0 ≲ 0.2 .- 0.5*sum(Δts.w₁ .* optimization_variables.w₁), 
+            0 ≲ 0.2 .- 0.5*sum(Δts.w₁ .* optimization_variables.measurements.w₁), 
         ]
         
         # Define an MTK Constraint system

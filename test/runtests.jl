@@ -34,8 +34,8 @@ end
 @testset "Optimization and Examples" begin 
     # Only simple test for all criteria
     @safetestset "1D" begin include("./references/1D.jl") end
-    # Test for controls (integer + relaxed)
-    #@safetestset "LotkaVolterra" begin end
+    # Test for controls (integer + relaxed) and ic
+    @safetestset "LotkaVolterra" begin include("./references/LotkaVolterra.jl") end
     ## Test for DAE support
     #@safetestset "Rober" begin end
 end
