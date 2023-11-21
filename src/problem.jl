@@ -58,7 +58,9 @@ function ModelingToolkit.states(prob::OEDProblem)
     end)
 
     regularization = Symbolics.variable("τ")
-    regularization = SymbolicUtils.setmetadata(regularization, ModelingToolkit.VariableBounds, (eps(), Inf))
+    regularization = SymbolicUtils.setmetadata(regularization,
+        ModelingToolkit.VariableBounds,
+        (eps(), Inf))
 
     (;
         initial_conditions, controls = control_variables,
@@ -97,12 +99,12 @@ function Optimization.OptimizationProblem(prob::OEDProblem,
         AD::Optimization.ADTypes.AbstractADType,
         u0::ComponentVector = get_initial_variables(prob), p = SciMLBase.NullParameters();
         integer_constraints::Bool = false,
-        constraints = nothing, variable_type::Type{T} = Float64, l1_regularization::Real = eps(), l2_regularization::Real = eps(),
+        constraints = nothing, variable_type::Type{T} = Float64,
+        l1_regularization::Real = eps(), l2_regularization::Real = eps(),
         kwargs...) where {T}
-    
-        @assert l1_regularization>=eps() "L1 regularization must be greater than zero."
-        @assert l2_regularization>=eps() "L1 regularization must be greater than zero."
-    
+    @assert l1_regularization>=eps() "L1 regularization must be greater than zero."
+    @assert l2_regularization>=eps() "L1 regularization must be greater than zero."
+
     l1_regularization = T(l1_regularization)
     l2_regularization = T(l2_regularization)
 
@@ -116,13 +118,16 @@ function Optimization.OptimizationProblem(prob::OEDProblem,
     n = Val(Int(sqrt(2 * sum(f_idxs) + 0.25) - 0.5))
 
     # Our objective function
-    objective = let solver = solver, criterion = prob.objective, idx = f_idxs, n = n, l1_regularization = l1_regularization, l2_regularization = l2_regularization, prototype = zero(u0)
+    objective = let solver = solver, criterion = prob.objective, idx = f_idxs, n = n,
+        l1_regularization = l1_regularization, l2_regularization = l2_regularization,
+        prototype = zero(u0)
 
         (p, x) -> begin
             p = p .+ prototype
             x, _ = solver(p)
             F = _symmetric_from_vector(x[idx, end], n)
-            criterion(F, p.regularization) + l1_regularization * p.regularization + l2_regularization * p.regularization
+            criterion(F, p.regularization) + l1_regularization * p.regularization +
+            l2_regularization * p.regularization
         end
     end
 

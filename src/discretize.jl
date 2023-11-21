@@ -132,7 +132,7 @@ function generate_initial_variables(sys::ModelingToolkit.AbstractODESystem, tgri
 
     (;
         initial_conditions, controls = control_variables,
-        measurements = measurement_variables, 
+        measurements = measurement_variables,
         regularization = regularization) |> sortkeys |> ComponentVector
 end
 
@@ -168,7 +168,7 @@ function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem,
     regularization = lower ? eps() : Inf
     (;
         initial_conditions, controls = control_variables,
-        measurements = measurement_variables, 
+        measurements = measurement_variables,
         regularization = regularization) |> sortkeys |> ComponentVector
 end
 
