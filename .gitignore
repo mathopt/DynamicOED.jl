@@ -302,3 +302,4 @@ TSWLatexianTemp*
 
 src/__old/**
 test/__old/**
+.DS_Store
