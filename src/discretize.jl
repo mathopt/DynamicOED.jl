@@ -110,6 +110,7 @@ function generate_initial_variables(sys::ModelingToolkit.AbstractODESystem, tgri
     ics = get_initial_conditions(sys)
     controls = get_control_parameters(sys)
     measurements = get_measurement_function(sys)
+    fim_states = get_fisher_states(sys)
 
     initial_conditions = NamedTuple(map(ics) do ic
         (Symbol(ic), Symbolics.getdefaultval(ic))
@@ -127,9 +128,12 @@ function generate_initial_variables(sys::ModelingToolkit.AbstractODESystem, tgri
         (w_sym, [Symbolics.getdefaultval(w) for _ in axes(tgrid.timegrids[idx], 1)])
     end)
 
+    regularization = 1.0
+
     (;
         initial_conditions, controls = control_variables,
-        measurements = measurement_variables) |> sortkeys |> ComponentVector
+        measurements = measurement_variables, 
+        regularization = regularization) |> sortkeys |> ComponentVector
 end
 
 function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem,
@@ -161,9 +165,11 @@ function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem,
         (w_sym, [bound for _ in axes(tgrid.timegrids[idx], 1)])
     end)
 
+    regularization = lower ? eps() : Inf
     (;
         initial_conditions, controls = control_variables,
-        measurements = measurement_variables) |> sortkeys |> ComponentVector
+        measurements = measurement_variables, 
+        regularization = regularization) |> sortkeys |> ComponentVector
 end
 
 struct ParameterRemake <: Function

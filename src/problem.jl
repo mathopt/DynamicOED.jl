@@ -57,9 +57,12 @@ function ModelingToolkit.states(prob::OEDProblem)
         (w_sym, Symbolics.variables(w_sym, 1:N))
     end)
 
+    regularization = Symbolics.variable("τ")
+    regularization = SymbolicUtils.setmetadata(regularization, ModelingToolkit.VariableBounds, (eps(), Inf))
+
     (;
         initial_conditions, controls = control_variables,
-        measurements = measurement_variables) |> sortkeys |> ComponentVector
+        measurements = measurement_variables, regularization = regularization) |> sortkeys |> ComponentVector
 end
 
 function get_timegrids(prob::OEDProblem)
@@ -94,10 +97,15 @@ function Optimization.OptimizationProblem(prob::OEDProblem,
         AD::Optimization.ADTypes.AbstractADType,
         u0::ComponentVector = get_initial_variables(prob), p = SciMLBase.NullParameters();
         integer_constraints::Bool = false,
-        constraints = nothing, variable_type::Type{T} = Float64, tau_min::Real = 1e-5,
+        constraints = nothing, variable_type::Type{T} = Float64, l1_regularization::Real = eps(), l2_regularization::Real = eps(),
         kwargs...) where {T}
-    @assert tau_min>=eps() "Tau must be greater than zero."
-    tau_min = T(tau_min)
+    
+        @assert l1_regularization>=eps() "L1 regularization must be greater than zero."
+        @assert l2_regularization>=eps() "L1 regularization must be greater than zero."
+    
+    l1_regularization = T(l1_regularization)
+    l2_regularization = T(l2_regularization)
+
     u0 = T.(u0)
     p = !isa(p, SciMLBase.NullParameters) ? T.(p) : p
 
@@ -108,13 +116,13 @@ function Optimization.OptimizationProblem(prob::OEDProblem,
     n = Val(Int(sqrt(2 * sum(f_idxs) + 0.25) - 0.5))
 
     # Our objective function
-    objective = let solver = solver, criterion = prob.objective, idx = f_idxs, n = n,
-        tau = tau_min
+    objective = let solver = solver, criterion = prob.objective, idx = f_idxs, n = n, l1_regularization = l1_regularization, l2_regularization = l2_regularization, prototype = zero(u0)
 
         (p, x) -> begin
+            p = p .+ prototype
             x, _ = solver(p)
             F = _symmetric_from_vector(x[idx, end], n)
-            criterion(F, tau)
+            criterion(F, p.regularization) + l1_regularization * p.regularization + l2_regularization * p.regularization
         end
     end
 
