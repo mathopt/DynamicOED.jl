@@ -50,7 +50,7 @@ $(TYPEDEF)
 The Fisher D-Criterion for experimental design. 
 
 ```julia
--min(abs, eigvals(F))
+-min(eigvals(F))
 ```
 """
 struct FisherECriterion <: AbstractInformationCriterion end
@@ -65,10 +65,8 @@ $(TYPEDEF)
 The A-Criterion for experimental design. 
 
 ```julia
-tr(inv(F + τ * I))
+tr(inv(F))
 ```
-
-where `τ` is a small regularization constant.
 """
 struct ACriterion <: AbstractInformationCriterion end
 
@@ -84,10 +82,8 @@ $(TYPEDEF)
 The D-Criterion for experimental design. 
 
 ```julia
-det(inv(F + τ * I))
+det(inv(F))
 ```
-
-where `τ` is a small regularization constant.
 """
 struct DCriterion <: AbstractInformationCriterion end
 
@@ -102,15 +98,13 @@ $(TYPEDEF)
 The E-Criterion for experimental design. 
 
 ```julia
-max(abs, eigvals(inv(F + τ * I)))
+max(eigvals(F))
 ```
-
-where `τ` is a small regularization constant.
 """
 struct ECriterion <: AbstractInformationCriterion end
 
 function (c::ECriterion)(F::AbstractArray{T, 2}) where T
-    λ = inv.(eigvals(F)) # Eigenvalues of matrix = inv(eigenvalues of inverse)
+    λ = eigvals(F) 
     maximum(real.(λ))
 end
 
