@@ -102,6 +102,6 @@ max(eigvals(F))
 struct ECriterion <: AbstractInformationCriterion end
 
 function (c::ECriterion)(F::AbstractArray{T, 2}) where {T}
-    λ = eigvals(F)
+    λ = inv.(eigvals(F))
     maximum(real.(λ))
 end
