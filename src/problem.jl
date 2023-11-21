@@ -95,18 +95,13 @@ function get_initial_variables(prob::OEDProblem)
     generate_initial_variables(prob.system, prob.timegrid)
 end
 
-function Optimization.OptimizationProblem(prob::OEDProblem,
-        AD::Optimization.ADTypes.AbstractADType,
-        u0::ComponentVector = get_initial_variables(prob), p = SciMLBase.NullParameters();
-        integer_constraints::Bool = false,
-        constraints = nothing, variable_type::Type{T} = Float64,
-        l1_regularization::Real = eps(), l2_regularization::Real = eps(),
-        kwargs...) where {T}
-    @assert l1_regularization>=eps() "L1 regularization must be greater than zero."
-    @assert l2_regularization>=eps() "L1 regularization must be greater than zero."
 
-    l1_regularization = T(l1_regularization)
-    l2_regularization = T(l2_regularization)
+function Optimization.OptimizationProblem(prob::OEDProblem,
+    AD::Optimization.ADTypes.AbstractADType,
+    u0::ComponentVector = get_initial_variables(prob), p = SciMLBase.NullParameters();
+    integer_constraints::Bool = false,
+    constraints = nothing, variable_type::Type{T} = Float64,
+    kwargs...) where {T}
 
     u0 = T.(u0)
     p = !isa(p, SciMLBase.NullParameters) ? T.(p) : p
@@ -119,18 +114,15 @@ function Optimization.OptimizationProblem(prob::OEDProblem,
 
     # Our objective function
     objective = let solver = solver, criterion = prob.objective, idx = f_idxs, n = n,
-        l1_regularization = l1_regularization, l2_regularization = l2_regularization,
         prototype = zero(u0)
 
         (p, x) -> begin
             p = p .+ prototype
             x, _ = solver(p)
             F = _symmetric_from_vector(x[idx, end], n)
-            criterion(F, p.regularization) + l1_regularization * p.regularization +
-            l2_regularization * p.regularization
+            criterion(F, p.regularization) + p.regularization
         end
     end
-
     # Generate the constraints, if possible
     if isa(constraints, ConstraintsSystem)
         (_, cons), cons_lb, cons_ub = ModelingToolkit.generate_function(constraints,
@@ -162,7 +154,7 @@ function Optimization.OptimizationProblem(prob::OEDProblem,
         get_control_parameters(prob.system),
         get_measurement_function(prob.system)))
 
-    # Declare the Optimization function 
+    # Declare the Optimization function
     opt_f = OptimizationFunction(objective, AD;
         syms = syms,
         cons = cons,)

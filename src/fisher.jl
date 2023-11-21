@@ -17,7 +17,7 @@ end
 """
 $(TYPEDEF)
 
-The Fisher A-Criterion for experimental design. 
+The Fisher A-Criterion for experimental design.
 
 ```julia
 -tr(F)
@@ -32,7 +32,7 @@ end
 """
 $(TYPEDEF)
 
-The Fisher D-Criterion for experimental design. 
+The Fisher D-Criterion for experimental design.
 
 ```julia
 -det(F)
@@ -47,7 +47,7 @@ end
 """
 $(TYPEDEF)
 
-The Fisher D-Criterion for experimental design. 
+The Fisher E-Criterion for experimental design.
 
 ```julia
 -min(eigvals(F))
@@ -62,7 +62,7 @@ end
 """
 $(TYPEDEF)
 
-The A-Criterion for experimental design. 
+The A-Criterion for experimental design.
 
 ```julia
 tr(inv(F))
@@ -78,7 +78,7 @@ end
 """
 $(TYPEDEF)
 
-The D-Criterion for experimental design. 
+The D-Criterion for experimental design.
 
 ```julia
 det(inv(F))
@@ -93,7 +93,7 @@ end
 """
 $(TYPEDEF)
 
-The E-Criterion for experimental design. 
+The E-Criterion for experimental design.
 
 ```julia
 max(eigvals(F))
