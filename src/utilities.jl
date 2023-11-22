@@ -1,5 +1,5 @@
 function continuous_predict(oed::OEDProblem, result::ComponentVector)
-    # Build the remaker and the problem 
+    # Build the remaker and the problem
     timegrid = oed.timegrid
     tspan = (first(first(timegrid.timespans)), last(last(timegrid.timespans)))
     odae_prob = ODAEProblem(oed.system, Pair[], tspan)
@@ -45,9 +45,11 @@ function extract_fisher(oed::OEDProblem,
 end
 
 function compute_local_information_gain(Qs::AbstractVector)
-    n_vars = size(first(Qs), 1)
-    map(Qs) do Qi
-        (Qi'Qi) / n_vars
+    n_h = size(first(Qs), 1)
+    map(1:n_h) do i
+        map(Qs) do Qi
+            (Qi[i:i,:]'Qi[i:i,:])
+        end
     end
 end
 
@@ -57,8 +59,10 @@ function compute_information_gain(oed::OEDProblem, result::ComponentVector{T}) w
     F = extract_fisher(oed, result, sols)
     Finv = inv(F)
     Ps = compute_local_information_gain(Qs)
-    Πs = map(eachindex(Ps)) do i
-        Finv * Ps[i] * Finv
+    Πs = map(Ps) do Pi
+        map(eachindex(Pi)) do i
+            Finv * Pi[i] * Finv
+        end
     end
     # np is simply the sum over all measurements
     np = sum(istunable, parameters(oed.system))
