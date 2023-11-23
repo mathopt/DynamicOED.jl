@@ -14,8 +14,6 @@ struct OEDProblem{S, O, T, C, A, DO}
     objective::O
     "The time grid"
     timegrid::T
-    "Constraints"
-    constraints::C
     "Solver for the differential equations"
     alg::A
     "Differential equations options"
@@ -23,8 +21,7 @@ struct OEDProblem{S, O, T, C, A, DO}
 end
 
 function OEDProblem(sys::ModelingToolkit.AbstractODESystem,
-        objective::AbstractInformationCriterion,
-        constraints = [];
+        objective::AbstractInformationCriterion;
         alg = Tsit5(),
         tspan = ModelingToolkit.get_tspan(sys),
         diffeqoptions::NamedTuple = NamedTuple(),

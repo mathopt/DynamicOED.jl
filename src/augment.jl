@@ -199,7 +199,6 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
         unweighted_information_gain = true,
     ]
 
-    #@parameters w[1:n_obs]::Int = zeros(T, n_obs) [description="Measurement function", tunable=true, measurement_function=true, bounds=(0,1)]
     w = Vector{Num}(undef, n_obs)
     @inbounds for i in axes(w, 1)
         wi = Symbolics.variable(:w, i, T = Int)
@@ -228,7 +227,7 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
 
     dynamic_eqs = equations(sys)
     # We always assume DAE form here. Results in a stable system
-    # 60 % of the time it works everytime! 
+    # 60 % of the time it works everytime! This is an easteregg, do not take it seriously!
     sens_eqs = vec(zeros(T, nx, np) .~ dfx * delta_t.(G) .+ fx * G .+ fp)
 
     # We do not need to do anything more than push this into the equations

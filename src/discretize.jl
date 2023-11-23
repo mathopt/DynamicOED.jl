@@ -110,7 +110,6 @@ function generate_initial_variables(sys::ModelingToolkit.AbstractODESystem, tgri
     ics = get_initial_conditions(sys)
     controls = get_control_parameters(sys)
     measurements = get_measurement_function(sys)
-    fim_states = get_fisher_states(sys)
 
     initial_conditions = NamedTuple(map(ics) do ic
         (Symbol(ic), Symbolics.getdefaultval(ic))
