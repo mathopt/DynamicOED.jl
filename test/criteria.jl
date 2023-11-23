@@ -25,5 +25,6 @@ end
 
     for (crit, res) in test_results
         @test isapprox(crit(F, 0.0), res)
+        @test isapprox(crit(F), res)
     end
 end
