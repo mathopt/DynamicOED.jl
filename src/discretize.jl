@@ -164,7 +164,7 @@ function generate_variable_bounds(sys::ModelingToolkit.AbstractODESystem,
         (w_sym, [bound for _ in axes(tgrid.timegrids[idx], 1)])
     end)
 
-    regularization = lower ? eps() : Inf
+    regularization = lower ? eps() : 1.0
     (;
         initial_conditions, controls = control_variables,
         measurements = measurement_variables,

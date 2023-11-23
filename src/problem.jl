@@ -7,7 +7,7 @@ The basic definition of an optimal experimental design problem.
 
 $(FIELDS)
 """
-struct OEDProblem{S, O, T, C, A, DO}
+struct OEDProblem{S, O, T, A, DO}
     "The optimal experimental design system in form of an ODESystem"
     system::S
     "The objective criterion"
@@ -26,7 +26,7 @@ function OEDProblem(sys::ModelingToolkit.AbstractODESystem,
         tspan = ModelingToolkit.get_tspan(sys),
         diffeqoptions::NamedTuple = NamedTuple(),
         kwargs...)
-    OEDProblem(sys, objective, Timegrid(sys, tspan), constraints, alg, diffeqoptions)
+    OEDProblem(sys, objective, Timegrid(sys, tspan), alg, diffeqoptions)
 end
 
 function ModelingToolkit.states(prob::OEDProblem)
