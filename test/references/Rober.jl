@@ -25,12 +25,12 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
     optimizer = Ipopt.Optimizer()
 
     oed_problem = DynamicOED.OEDProblem(roberoed,
-        FisherDCriterion(),
+        DCriterion(),
         alg = Rodas5(),
         diffeq_options = (; abstol = 1e-8, reltol = 1e-8))
 
     optimization_variables = states(oed_problem)
-    @test length(optimization_variables) == 10
+    @test length(optimization_variables) == 11
 
     constraints = [
         1.0 ≲ sum(optimization_variables.measurements.w₁),
@@ -47,18 +47,7 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
         integer_constraints = false)
     res = solve(opt_prob, optimizer)
     u_opt = res.u + zero(opt_prob.u0)
-
-    @test u_opt.measurements.w₁ ≈ [
-        -9.964811377982917e-9,
-        -9.94689705666124e-9,
-        -9.922856160437833e-9,
-        -9.885103640955005e-9,
-        -9.813833309012011e-9,
-        -9.625985945410416e-9,
-        4.0100656295094836e-8,
-        1.0000000094881993,
-        1.000000009734404,
-        1.000000009807539,
-    ]
-    @test isapprox(res.objective, -740.5907947052916, atol = 1e-2, rtol = 1e-2)
+    @test isapprox(u_opt.measurements,  [1.8872186300229836e-5, 2.8175824999915748e-5, 4.035472649222709e-5, 5.881065041987711e-5, 9.15959369452527e-5, 0.0001667131402021681, 0.0004865755450836175, 0.9994267375362046, 0.9997958106584781, 0.9998709072042323], atol = 1e-2, rtol = 1e-5)
+    @test isapprox(u_opt[end], 0., atol = 1e-3)
+    @test isapprox(res.objective, 0., atol = 1e-2)
 end
