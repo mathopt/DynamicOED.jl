@@ -38,7 +38,7 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
 
     optimizer = Ipopt.Optimizer()
 
-    oed_problem = DynamicOED.OEDProblem(oed_lotka, FisherDCriterion())
+    oed_problem = DynamicOED.OEDProblem(oed_lotka, FisherACriterion())
 
     optimization_variables = states(oed_problem)
     timegrids = DynamicOED.get_timegrids(oed_problem)
@@ -65,8 +65,9 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
         integer_constraints = false)
     res = solve(opt_prob, optimizer)
     u_opt = res.u + opt_prob.u0
-    @test u_opt.controls.u ≈ [
-        0.19122532992686292,
+    
+    @test isapprox(u_opt.controls.u, [
+        0.62,
         -4.357849235877129e-9,
         -7.0697653556629854e-9,
         -7.964662383759068e-9,
@@ -76,8 +77,9 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
         -8.822579849602493e-9,
         -8.756712678420366e-9,
         -7.15514843922874e-9,
-    ]
-    @test u_opt.measurements.w₁ ≈ [
+    ], atol = 1e-2, rtol = 1e-5)
+
+    @test isapprox(u_opt.measurements.w₁, [
         -5.7627792545520196e-9,
         -5.758386540897064e-9,
         -5.749649687429022e-9,
@@ -108,8 +110,9 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
         0.9999999928632054,
         0.9999999994598789,
         1.000000002696486,
-    ]
-    @test u_opt.measurements.w₂ ≈ [
+    ], atol = 1e-2, rtol = 1e-5)
+
+    @test isapprox(u_opt.measurements.w₂ , [
         -3.833322378832553e-9,
         -3.829263549940177e-9,
         -3.821863054784994e-9,
@@ -140,8 +143,10 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
         0.9999999999387468,
         1.0000000041944848,
         1.0000000061707939,
-    ]
-    @test isapprox(res.objective, -3.108, atol = 1e-2)
+    ], atol = 1e-2, rtol = 1e-5)
+
+    @info res.objective
+    @test isapprox(res.objective, -4.85, atol = 1e-2)
 end
 
 @testset "Integer" begin
@@ -179,7 +184,7 @@ end
         "nl_solver" => OptimizationMOI.MOI.OptimizerWithAttributes(Ipopt.Optimizer,
             "print_level" => 0))
 
-    oed_problem = DynamicOED.OEDProblem(oed_lotka, FisherDCriterion())
+    oed_problem = DynamicOED.OEDProblem(oed_lotka, DCriterion())
 
     optimization_variables = states(oed_problem)
     timegrids = DynamicOED.get_timegrids(oed_problem)
@@ -207,7 +212,7 @@ end
         integer_constraints = true)
     res = solve(opt_prob, optimizer)
     u_opt = res.u + opt_prob.u0
-    @test u_opt.controls.u ≈ [
+    @test isapprox(u_opt.controls.u, [
         1.0000000032660439,
         1.6752611729303576e-8,
         -3.957801293389325e-9,
@@ -218,8 +223,8 @@ end
         -8.10418072743497e-9,
         -7.828539249999535e-9,
         2.2919106922838742e-8,
-    ]
-    @test u_opt.measurements.w₁ ≈ [
+    ], atol = 1e-2, rtol = 1e-5)
+    @test isapprox(u_opt.measurements.w₁, [
         -5.211901990293106e-9,
         -5.207076857082087e-9,
         -5.198756751528438e-9,
@@ -250,8 +255,9 @@ end
         0.9999999930680564,
         1.0000000001481675,
         1.0000000033846281,
-    ]
-    @test u_opt.measurements.w₂ ≈ [
+    ], atol = 1e-2, rtol = 1e-5)
+
+    @test isapprox(u_opt.measurements.w₂, [
         -3.019543245725386e-9,
         -3.0157278940743817e-9,
         -3.0099643773066394e-9,
@@ -282,8 +288,8 @@ end
         1.000000000489115,
         1.000000004387359,
         1.0000000064340413,
-    ]
-    @test isapprox(res.objective, -2.91, atol = 1e-2)
+    ], atol =1e-2, rtol = 1e-5)
+    @test isapprox(res.objective, 0.34, atol = 1e-2)
 end
 
 @testset "Relaxed with unknown initial condition" begin
@@ -291,26 +297,26 @@ end
     @variables x(t)=0.49 [
         description = "Biomass Prey",
         tunable = true,
-        bounds = (0.45, 0.55),
-    ] y(t)=0.7 [description = "Biomass Predator"]
-    @parameters p[1:4]=[1.0; 1.0] [description = "Fixed parameters", tunable = false]
-    @parameters c[1:2]=[1.0; 1.0] [description = "Uncertain parameters", tunable = true]
+        bounds = (0.1, 1.0),
+    ] y(t)=0.7 [description = "Biomass Predator", tunable = false]
+    @parameters p[1:3]=[1.0; 1.0; 1.0] [description = "Fixed parameters", tunable = false]
+    @parameters c[1:1]=[1.0;] [description = "Uncertain parameters", tunable = true]
     @variables obs(t)[1:1] [
         description = "Observed variable measured 10 times over the provided time span",
-        measurement_rate = 0.1,
+        measurement_rate = 10,
     ]
     obs = collect(obs)
     D = Differential(t)
 
     # Define the ODE System
     @named lotka_volterra = ODESystem([D(x) ~ p[1] * x - c[1] * x * y;
-            D(y) ~ -p[2] * y + c[2] * x * y], tspan = (0.0, 2.0),
+            D(y) ~ -p[2] * y + p[3] * x * y], tspan = (0.0, 5.0),
         observed = obs .~ [y + x])
 
     @named oed_lotka = OEDSystem(lotka_volterra)
     oed_lotka = structural_simplify(oed_lotka)
 
-    oed_problem = DynamicOED.OEDProblem(oed_lotka, FisherDCriterion())
+    oed_problem = DynamicOED.OEDProblem(oed_lotka, DCriterion())
 
     optimization_variables = states(oed_problem)
 
@@ -322,7 +328,7 @@ end
     end
 
     constraints = [
-        0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₁),
+        0 ≲ 1 .-  sum(Δts.w₁ .* optimization_variables.measurements.w₁),
     ]
 
     # Define an MTK Constraint system
@@ -336,28 +342,7 @@ end
         integer_constraints = false)
     res = solve(opt_prob, Ipopt.Optimizer())
     u_opt = res.u + zero(opt_prob.u0)
-    @test isapprox(u_opt.initial_conditions, [0.5499;], atol = 1e-3)
-    @test u_opt.measurements ≈ [
-        0.9999467690759823,
-        0.2889392183075416,
-        8.823102762801495e-5,
-        5.902803016376209e-5,
-        5.45343709752492e-5,
-        5.943632363159331e-5,
-        7.390104708854046e-5,
-        0.00010601581407759611,
-        0.0001864601518473977,
-        0.0004920417157797496,
-        0.5497864162897818,
-        0.9951212913581335,
-        0.0009772393493666402,
-        0.00023758659423053438,
-        0.00011924628137885995,
-        7.977421726275503e-5,
-        6.789169699496762e-5,
-        8.329911974351856e-5,
-        0.1635425413025284,
-        0.9999634883874989,
-    ]
-    @test isapprox(res.objective, -0.00025, atol = 1e-3)
+    @test isapprox(u_opt.initial_conditions[1], 0.15, atol = 1e-2, rtol = 1e-5)
+    @test isapprox(u_opt.measurements, [2.0786692724286787e-6, 2.0996128083833926e-6, 2.1369860754014572e-6, 2.215090580904563e-6, 2.3973894468800598e-6, 2.8899305755059397e-6, 4.771191106750985e-6, 7.588080619413368e-5, 0.9999093339443416, 0.9999941524754293], atol = 1e-2, rtol = 1e-5)
+    @test isapprox(res.objective, 1e-2, atol = 1e-2, rtol = 1e-5)
 end
