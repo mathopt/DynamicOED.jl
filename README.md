@@ -55,6 +55,6 @@ optimization_problem = OptimizationProblem(oed_problem, AutoForwardDiff(),
       integer_constraints = false)
 
 # Solven for the optimal values of the observed variables
-solve(opt_prob, optimizer)
+solve(optimization_problem, optimizer)
 ``` 
 
