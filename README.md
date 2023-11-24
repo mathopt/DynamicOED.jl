@@ -44,7 +44,7 @@ oed_problem = OEDProblem(structural_simplify(oed), crit)
 optimization_variables = states(oed_problem)
         
 constraints = [
-    0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variable.measurements.w₁),
+      sum(optimization_variables.measurements.w₁) ≲ 3,
 ]
 
 @named constraint_set = ConstraintsSystem(constraints, optimization_variables,[])
