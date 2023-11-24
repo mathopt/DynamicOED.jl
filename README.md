@@ -38,16 +38,16 @@ D = Differential(t)
 oed = structural_simplify(oed)
 
 # Augment the original problem to an OED problem
-oed_problem = OEDProblem(structural_simplify(oed), crit)
+oed_problem = OEDProblem(structural_simplify(oed), FisherACriterion())
 
 # Define an MTK Constraint system over the grid variables
 optimization_variables = states(oed_problem)
         
-constraints = [
+constraint_equations = [
       sum(optimization_variables.measurements.w₁) ≲ 3,
 ]
 
-@named constraint_set = ConstraintsSystem(constraints, optimization_variables,[])
+@named constraint_set = ConstraintsSystem(constraint_equations, optimization_variables,[])
 
 # Initialize the optimization problem
 optimization_problem = OptimizationProblem(oed_problem, AutoForwardDiff(),
@@ -55,6 +55,6 @@ optimization_problem = OptimizationProblem(oed_problem, AutoForwardDiff(),
       integer_constraints = false)
 
 # Solven for the optimal values of the observed variables
-solve(optimization_problem, optimizer)
+solve(optimization_problem, Ipopt.Optimizer())
 ``` 
 
