@@ -300,3 +300,7 @@ TSWLatexianTemp*
 # Uncomment the next line to have this generated file ignored.
 #*Notes.bib
 
+src/__old/**
+test/__old/**
+.DS_Store
+Manifest.toml

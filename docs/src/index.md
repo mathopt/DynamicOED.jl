@@ -1,10 +1,27 @@
 # DynamicOED.jl
 
-[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl) [![SciML Code Style](https://img.shields.io/static/v1?label=code%20style&message=SciML&color=9558b2&labelColor=389826)](https://github.com/SciML/SciMLStyle) ![Lifecycle:Experimental](https://img.shields.io/badge/Lifecycle-Experimental-339999)
-
 Repository for optimal experimental design for differential equations using optimal control.
 
 `DynamicOED.jl` uses multiple packages of Julia's [SciML](https://sciml.ai/) ecosystem, especially [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl), [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl) and [Optimization.jl](https://github.com/SciML/Optimization.jl) to define [optimal experimental design problems using optimal control](https://doi.org/10.1137/110835098).
+
+## Installation 
+
+**This package is not registered yet, but once it is you can use this section.**
+
+Assuming that you already have Julia correctly installed, it suffices to import
+DynamicOED.jl in the standard way:
+
+```julia
+import Pkg
+Pkg.add("DynamicOED")
+```
+
+The packages relevant to the core functionality of DynamicOED.jl will be imported
+accordingly and, in most cases, you do not have to worry about the manual
+installation of dependencies. However, you will need to add the specific optimizer
+packages.
+
+To solve the underlying optimization problem, please refer to [Optimization.jl](https://github.com/SciML/Optimization.jl) for available solvers.
 
 ## Features
 

@@ -1,30 +1,46 @@
 module DynamicOED
 
 using DocStringExtensions
-using LinearAlgebra
-
-using AbstractDifferentiation
-using ForwardDiff
-
-using ModelingToolkit
-using Symbolics
 
 using SciMLBase
+using CommonSolve
+using ModelingToolkit
+using LinearAlgebra
+
+using ComponentArrays
 using OrdinaryDiffEq
 using SciMLSensitivity
+using Optimization
 
-using Nonconvex
-
-abstract type AbstractExperimentalDesign end
+abstract type AbstractAugmentationBackened end
 abstract type AbstractInformationCriterion end
 
-include("experimental_design.jl")
-export ExperimentalDesign
+# Credit to https://discourse.julialang.org/t/sort-keys-of-namedtuple/94630/3
+@generated sortkeys(nt::NamedTuple{KS}) where {KS} = :(NamedTuple{
+    $(Tuple(sort(collect(KS)))),
+}(nt))
 
-include("criteria.jl")
-export FischerACriterion
+"""
+$(TYPEDEF)
 
-include("optimize.jl")
-export solve
+Uses `ModelingToolkit` as a backened to augment the system.
+"""
+struct MTKBackend <: AbstractAugmentationBackened end
+
+include("augment.jl")
+export OEDSystem
+
+include("fisher.jl")
+export FisherACriterion, FisherDCriterion, FisherECriterion
+export ACriterion, DCriterion, ECriterion
+
+include("discretize.jl")
+
+include("problem.jl")
+export OEDProblem
+export get_timegrids
+export get_initial_variables
+
+include("utilities.jl")
 
 end # module DynamicOED
