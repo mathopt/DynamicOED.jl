@@ -14,7 +14,7 @@ where we are interested in estimating the parameters $p_2$ and $p_4$. We can mea
 
 We start by using [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl) and DynamicOED.jl to model the system.
 
-```@example Lotka
+```@example lotka
 using DynamicOED
 using ModelingToolkit
 using Optimization, OptimizationMOI, Ipopt
@@ -45,18 +45,18 @@ Like in the [Design of Experiments for a simple system](@ref), we added importan
 
 Now we can augment the system with the needed expressions for the sensitivities and the Fisher Information matrix by constructing an `OEDSystem`. 
 
-```@example Lotka
+```@example lotka
 @named oed_system = OEDSystem(lotka_volterra)
 ```
 
 With this augmented `ODESystem` we can set up the `OEDProblem` by specifying the criterion we want to optimize.
 
-```@example Lotka
+```@example lotka
 oed_problem = OEDProblem(structural_simplify(oed_system), DCriterion())
 ```
 We choose the [`DCriterion`](@ref), which minimizes the determinant of the inverse of the Fisher Information matrix. For constraining the time we can measure by defining a `ConstraintSystem` from ModelingToolkit on the optimization variables. We want to measure for at most $4$ units of time. Since we discretized the observed variables on $96$ subintervals on a time horizon of $12$ units of time, this translates to an upper limit on the measurements of $32$.
 
-```@example Lotka
+```@example lotka
 optimization_variables = states(oed_problem)
 
 constraint_equations = [
@@ -79,7 +79,7 @@ Finally, we are now able to convert our [`OEDProblem`](@ref) into an `Optimizati
     Currently we only support `AutoForwardDiff()` as an AD backend.
 
 
-```@example Lotka
+```@example lotka
 optimization_problem = OptimizationProblem(
     oed_problem, AutoForwardDiff(), constraints = constraint_system,
     integer_constraints = false
@@ -91,12 +91,12 @@ u_opt = optimal_design.u + optimization_problem.u0
 ```
 
 Now we want to visualize the found solution. 
-```@example Lotka
-function plotoed(oed_problem, res)
+```@example lotka
+function plotoed(problem, res)
 
-    predictor = DynamicOED.build_predictor(oed_problem)
+    predictor = DynamicOED.build_predictor(problem)
     x_opt, t_opt = predictor(res)
-    timegrid = oed_problem.timegrid
+    timegrid = problem.timegrid
 
     state_plot = plot(t_opt, x_opt[1:2, :]', xlabel = "Time", ylabel = "States", label = ["x" "y"])
 
