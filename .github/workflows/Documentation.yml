@@ -1,0 +1,33 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+    tags: '*'
+  pull_request:
+    branches:
+        - main
+
+jobs:
+    docs:
+        name: 'Documentation: ${{ matrix.format }}'
+        runs-on: ubuntu-latest
+        strategy:
+          fail-fast: false
+          matrix:
+            format:
+              - html
+              - pdf
+        steps:
+          - uses: actions/checkout@v4
+          - uses: julia-actions/setup-julia@v1
+            with:
+              version: '1.9'
+          - uses: julia-actions/cache@v1
+          - name: Install dependencies
+            run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+          - name: Build the manual
+            run: julia --color=yes --project=docs/ docs/make.jl ${{ matrix.format }}
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
