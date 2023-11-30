@@ -17,3 +17,6 @@ makedocs(modules = [DynamicOED],
         "Theory" => "theory.md",
         "API" => "api.md",
     ])
+
+deploydocs(repo = "github.com/mathopt/DynamicOED.jl";
+    push_preview = true)
