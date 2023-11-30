@@ -48,7 +48,7 @@ function compute_local_information_gain(Qs::AbstractVector)
     n_h = size(first(Qs), 1)
     map(1:n_h) do i
         map(Qs) do Qi
-            (Qi[i:i,:]'Qi[i:i,:])
+            (Qi[i:i, :]'Qi[i:i, :])
         end
     end
 end

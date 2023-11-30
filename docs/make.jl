@@ -4,8 +4,7 @@ push!(LOAD_PATH, joinpath(@__DIR__, ".."))
 
 using DynamicOED
 
-makedocs(
-    modules = [DynamicOED],
+makedocs(modules = [DynamicOED],
     sitename = "DynamicOED.jl",
     remotes = nothing,
     draft = false,
@@ -16,6 +15,5 @@ makedocs(
             "Lotka-Volterra" => "examples/lotka.md",
         ],
         "Theory" => "theory.md",
-        "API" => "api.md"
-    ]
-)
+        "API" => "api.md",
+    ])
