@@ -54,7 +54,7 @@ oed = structural_simplify(oed)
             integer_constraints = false)
         res = solve(opt_prob, optimizer)
 
-        @test isapprox(res.u[1:end-1],
+        @test isapprox(res.u[1:(end - 1)],
             [0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0],
             atol = 1e-5,
             rtol = 1e-1)
@@ -95,8 +95,7 @@ end
             integer_constraints = true)
         res = solve(opt_prob, optimizer)
 
-
-        @test isapprox(res.u[1:end-1],
+        @test isapprox(res.u[1:(end - 1)],
             [0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0],
             atol = 1e-5,
             rtol = 1e-1)

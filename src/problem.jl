@@ -92,14 +92,12 @@ function get_initial_variables(prob::OEDProblem)
     generate_initial_variables(prob.system, prob.timegrid)
 end
 
-
 function Optimization.OptimizationProblem(prob::OEDProblem,
-    AD::Optimization.ADTypes.AbstractADType,
-    u0::ComponentVector = get_initial_variables(prob), p = SciMLBase.NullParameters();
-    integer_constraints::Bool = false,
-    constraints = nothing, variable_type::Type{T} = Float64,
-    kwargs...) where {T}
-
+        AD::Optimization.ADTypes.AbstractADType,
+        u0::ComponentVector = get_initial_variables(prob), p = SciMLBase.NullParameters();
+        integer_constraints::Bool = false,
+        constraints = nothing, variable_type::Type{T} = Float64,
+        kwargs...) where {T}
     u0 = T.(u0)
     p = !isa(p, SciMLBase.NullParameters) ? T.(p) : p
 

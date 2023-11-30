@@ -47,7 +47,21 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
         integer_constraints = false)
     res = solve(opt_prob, optimizer)
     u_opt = res.u + zero(opt_prob.u0)
-    @test isapprox(u_opt.measurements,  [1.8872186300229836e-5, 2.8175824999915748e-5, 4.035472649222709e-5, 5.881065041987711e-5, 9.15959369452527e-5, 0.0001667131402021681, 0.0004865755450836175, 0.9994267375362046, 0.9997958106584781, 0.9998709072042323], atol = 1e-2, rtol = 1e-5)
-    @test isapprox(u_opt[end], 0., atol = 1e-3)
-    @test isapprox(res.objective, 0., atol = 1e-2)
+    @test isapprox(u_opt.measurements,
+        [
+            1.8872186300229836e-5,
+            2.8175824999915748e-5,
+            4.035472649222709e-5,
+            5.881065041987711e-5,
+            9.15959369452527e-5,
+            0.0001667131402021681,
+            0.0004865755450836175,
+            0.9994267375362046,
+            0.9997958106584781,
+            0.9998709072042323,
+        ],
+        atol = 1e-2,
+        rtol = 1e-5)
+    @test isapprox(u_opt[end], 0.0, atol = 1e-3)
+    @test isapprox(res.objective, 0.0, atol = 1e-2)
 end
