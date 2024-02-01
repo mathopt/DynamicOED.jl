@@ -1,5 +1,5 @@
 ---
-title: 'NeuralOED.jl: A Julia package for solving dynamic optimum experimental design problems'
+title: 'DynamicOED.jl: A Julia package for solving dynamic optimum experimental design problems'
 tags:
   - Julia
   - optimization
