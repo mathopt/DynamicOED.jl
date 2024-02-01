@@ -7,13 +7,13 @@ tags:
   - parameter estimation
 authors:
   - name: Julius Martensen
-    #equal-contrib: true # (This is how you can denote equal contributions between multiple authors)
+    equal-contrib: true # (This is how you can denote equal contributions between multiple authors)
     orcid: 0000-0003-4143-3040
     corresponding : true
     affiliation: 1
   - name: Christoph Plate
     orcid: 0000-0003-0354-8904
-    #equal-contrib: true
+    equal-contrib: true
     affiliation: 1 # (Multiple affiliations must be quoted)
   - name: Sebastian Sager
     orcid : 0000-0002-0283-9075 
