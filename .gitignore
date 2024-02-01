@@ -304,3 +304,7 @@ src/__old/**
 test/__old/**
 .DS_Store
 Manifest.toml
+
+paper/media/*
+paper/*.jats
+paper/*.pdf
