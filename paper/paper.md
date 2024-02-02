@@ -137,7 +137,7 @@ optimal_design = solve(optimization_problem, Ipopt.Optimizer(); hessian_approxim
 
 The package comes with several plotting functionalities with which the solutions can be quickly visualized and analyzed. \autoref{fig:lotka} shows the solution of the example above including the state trajectory $x(t), y(t)$ and the sampling decisions $w$.
 
-More examples can be found at the documentation. 
+More examples can be found at the [documentation](https://mathopt.github.io/DynamicOED.jl/dev/). 
 
 # Acknowledgements
 
