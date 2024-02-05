@@ -65,12 +65,12 @@ constraint_equations = [
 ]
 
 @named constraint_system = ConstraintsSystem(
-    constraint_equations, optimization_variables, []
+    constraint_equations, collect(optimization_variables), []
 )
 nothing # hide
 ```
 !!! note 
-    The `optimization_states` contain several groups of variables, namely `measurements`, `controls`, `initial_conditions`, and `regularization`. `measurements` represent the decision to observe at a specific time point at the grid. We currently work with the naming convention `w_i` for the i-th observed equation.
+    The `optimization_variables` contain several groups of variables, namely `measurements`, `controls`, `initial_conditions`, and `regularization`. `measurements` represent the decision to observe at a specific time point at the grid. We currently work with the naming convention `w_i` for the i-th observed equation. Currently we need to `collect` the states before passing them into the `ConstraintsSystem`!
 
 
 Finally, we are now able to convert our [`OEDProblem`](@ref) into an `OptimizationProblem` and `solve` it.
