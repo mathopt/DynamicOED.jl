@@ -164,7 +164,6 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     delta_t = Differential(t)
     # The observed equations 
     obs = filter(x -> is_measured(x.lhs), observed(sys))
-    @info obs
     # Check if all observed equations and controls have measurement rates associated
     @assert !isempty(obs) "None of the observed equations have measurement rates associated to them! Please provide at least one observable measurement."
     @assert all(is_measured, c) "Not all controls have rates associated to them! If you mean to apply continuous controls, please adjust your model before passing it."
