@@ -119,7 +119,7 @@ function construct_jacobians(::MTKBackend,
     fx = ModelingToolkit.jacobian(eqs, states(sys))
     dfddx = ModelingToolkit.jacobian(eqs, D.(states(sys)))
     fp = ModelingToolkit.jacobian(eqs, p)
-    obs = observed(sys)
+    obs = filter(x -> is_measured(x.lhs), observed(sys))
     obs = isempty(obs) ? states(sys) : map(x -> x.rhs, obs)
     hx = ModelingToolkit.jacobian(obs, states(sys))
     return dfddx, fx, fp, hx
@@ -163,10 +163,10 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     t = ModelingToolkit.get_iv(sys)
     delta_t = Differential(t)
     # The observed equations 
-    obs = observed(sys)
-
+    obs = filter(x -> is_measured(x.lhs), observed(sys))
+    @info obs
     # Check if all observed equations and controls have measurement rates associated
-    @assert all(x -> is_measured(x.lhs), obs) "Not all observed equations have measurement rates associated to them!"
+    @assert !isempty(obs) "None of the observed equations have measurement rates associated to them! Please provide at least one observable measurement."
     @assert all(is_measured, c) "Not all controls have rates associated to them! If you mean to apply continuous controls, please adjust your model before passing it."
 
     @assert !isempty(obs) "Please defined `observed` equations to use optimal experimental design."
