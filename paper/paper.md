@@ -33,7 +33,7 @@ bibliography: bibliography.bib
 # Summary
 
 Optimum experimental design (OED) problems are typically encountered when unknown or uncertain
-parameters of mathematical models are to be estimated from an observable, maybe even controlable, process. In this scenario, OED can be used to decide on an experimental setup before collecting the data, i.e., deciding on when to measure and / or how to stimulate a dynamic process in order to maximize the amount of information gathered such that the parameters can be accurately estimated.
+parameters of mathematical models are to be estimated from an observable, maybe even controllable, process. In this scenario, OED can be used to decide on an experimental setup before collecting the data, i.e., deciding on when to measure and / or how to stimulate a dynamic process in order to maximize the amount of information gathered such that the parameters can be accurately estimated.
 
 Our software package DynamicOED.jl facilitates the solution of optimum experimental design problems for dynamical systems. Following ideas presented in [@Sager2013], we cast the OED problem into an optimal control problem. This is done by augmenting the user-provided system of ordinary differential equations (ODE) or differential algebraic equations (DAE) with their variational differential (algebraic) equations and the differential equation governing the evolution of the Fisher information matrix (FIM). A suitable criterion based on the FIM is then optimized in the resulting optimal control problem using a direct *first discretize, then optimize* approach.
 
