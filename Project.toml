@@ -1,7 +1,7 @@
 name = "DynamicOED"
 uuid = "bec7fea8-67ad-492e-b01d-b4dfa914b0da"
 authors = ["Carl Julius Martensen <carl.martensen@ovgu.de>", "Christoph Plate <chplate@ovgu.de>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
