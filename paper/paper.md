@@ -33,18 +33,17 @@ bibliography: bibliography.bib
 # Summary
 
 Optimum experimental design (OED) problems are typically encountered when unknown or uncertain
-parameters of mathematical models are to be estimated from experimental data. 
-In this scenario, OED is needed to decide on an experimental setup before collecting the data, i.e., deciding on when to measure or how to stimulate a dynamic process in order to maximize the amount of information gathered such that the parameters can be accurately estimated. 
+parameters of mathematical models are to be estimated from an observable, maybe even controlable, process. In this scenario, OED can be used to decide on an experimental setup before collecting the data, i.e., deciding on when to measure and / or how to stimulate a dynamic process in order to maximize the amount of information gathered such that the parameters can be accurately estimated.
 
-Our software package `DynamicOED.jl` facilitates the solution of optimum experimental design problems. Following ideas presented in [@Sager2013], we cast the OED problem into an optimal control problem. This is done by augmenting the user-provided system of ordinary differential equations (ODE) or differential algebraic equations (DAE) with their variational differential (algebraic) equations and the differential equation governing the evolution of the Fisher information matrix (FIM). A suitable criterion based on the FIM is then optimized in the resulting optimal control problem using a direct *first discretize, then optimize* approach.
+Our software package DynamicOED.jl facilitates the solution of optimum experimental design problems for dynamical systems. Following ideas presented in [@Sager2013], we cast the OED problem into an optimal control problem. This is done by augmenting the user-provided system of ordinary differential equations (ODE) or differential algebraic equations (DAE) with their variational differential (algebraic) equations and the differential equation governing the evolution of the Fisher information matrix (FIM). A suitable criterion based on the FIM is then optimized in the resulting optimal control problem using a direct *first discretize, then optimize* approach.
 
 # Statement of need
 
 `DynamicOED.jl` is a Julia [@bezanson2017julia] package for solving optimum experimental design problems. Solving OED problems is of interest for several reasons. First, all model-based optimization strategies rely on the knowledge of the accurate values of the model's parameters. Second, computing optimal experimental designs before performing the actual experiments to collect data allows to reduce the number of needed experiments or measurements. This is important in practical applications when measuring quantities of interest is only possible to a limited extent, e.g., due to high costs of performing the measurements. 
 
-Our package was designed with high flexibility. For formulating the underlying dynamical system, our package bases on the `ODESystem` from `ModelingToolkit.jl` [@ma2021modelingtoolkit]. This enables researchers and modelers to easily investigate and analyze their models and allows them to collect insightful data for their parameter estimation problems. 
+Our package is designed for high flexibility and ease of use. For formulating the underlying dynamical system, our package bases on the `ODESystem` from `ModelingToolkit.jl` [@ma2021modelingtoolkit]. This enables researchers and modelers to easily investigate and analyze their models and allows them to collect insightful data for their parameter estimation problems. 
 
-To our knowledge it is the first dedicated package for solving optimal experimental design problems with dynamical systems written in the programming language Julia. It may therefore be a valuable resource to different communities dealing with experimental data and parameter estimation problems.
+To our knowledge it is the first dedicated package for solving general optimal experimental design problems with dynamical systems written in the programming language Julia. It may therefore be a valuable resource to different communities dealing with experimental data and parameter estimation problems.
 
 # Problem statement and usage example
 
@@ -64,12 +63,11 @@ $$
                 & z(t_f) - M  & \leq & 0,
 \end{array}
 $$
-where $\mathcal{T} = [t_0, t_f]$ is the fixed time horizon and $x : \mathcal{T} \mapsto \mathbb{R}^{n_x}$ are the differential states. The first and second constraint denote the dynamical system and the sensitivities of the solution of the dynamical system with respect to the uncertain parameters, respectively, and are given in an implicit form. Here, $f_{\dot x}$ ($f_x$) denotes the partial derivative of $f$ with respect to $\dot x$ ($x$). The objective $\phi(F(t_f))$ of Bolza type is a suited objective function, e.g., the D-criterion $\phi(F(t_f)) = \det(F^{-1}(t_f))$. The evolution of the symmetric FIM $F : \mathcal{T} \mapsto \mathbb{R}^{n_p \times n_p}$ is governed by the measurement function $h: \mathbb{R}^{n_x} \mapsto \mathbb{R}^{n_h}$, the sensitivities $G : \mathcal{T} \mapsto \mathbb{R}^{n_x \times n_p}$ and the sampling decisions $w(t) \in \{0,1\}^{n_h}$. The latter are the main optimization variables and represent the decision whether to measure at a given time point or not. In our direct approach, these variables are discretized, hence we write $w(t) \in \{0,1\}^{N_w \times n_h}$, where $N_w$ is the (user-supplied) number of discretization intervals on $\mathcal{T}$. The sampling decisions are then accumulated in the variables $z$ and constrained by $M \in \mathbb{R}^{n_h}_{+}$. The controls $u \in \mathcal{U}$ can either be fixed or also be viewed as optimization variables after discretization. 
+where $\mathcal{T} = [t_0, t_f]$ is the fixed time horizon and $x : \mathcal{T} \mapsto \mathbb{R}^{n_x}$ are the differential states. The first and second constraint denote the dynamical system and the sensitivities of the solution of the dynamical system with respect to the uncertain parameters, respectively, and are given in an implicit form. Here, $f_{\dot x}$, ($f_x$) denote the partial derivative of $f$ with respect to $\dot x$ and ($x$). The objective $\phi(F(t_f))$ of Bolza type is a suited objective function, e.g., the D-criterion $\phi(F(t_f)) = \det(F^{-1}(t_f))$. The evolution of the symmetric FIM $F : \mathcal{T} \mapsto \mathbb{R}^{n_p \times n_p}$ is governed by the measurement function $h: \mathbb{R}^{n_x} \mapsto \mathbb{R}^{n_h}$, the sensitivities $G : \mathcal{T} \mapsto \mathbb{R}^{n_x \times n_p}$ and the sampling decisions $w(t) \in \{0,1\}^{n_h}$. The latter are the main optimization variables and represent the decision whether to measure at a given time point or not. In our direct approach, these variables are discretized, hence we write $w(t) \in \{0,1\}^{N_w \times n_h}$, where $N_w$ is the (user-supplied) number of discretization intervals on $\mathcal{T}$. The sampling decisions are then accumulated in the variables $z$ and constrained by $M \in \mathbb{R}^{n_h}_{+}$. The controls $u \in \mathcal{U}$ can either be fixed or also be viewed as optimization variables after discretization.
 
 For more information on optimal experimental design for DAEs and their sensitivity analysis, we refer to [@Koerkel2002; @Li2000SensitivityAnalysisDifferential]. 
 
-The functionality in this package integrates into Julia's [`SciML`](https://sciml.ai/) ecosystem. The model is provided in symbolic form as an `ODESystem` using `ModelingToolkit.jl`[@ma2021modelingtoolkit] with additional frequency information for the observed and control variables. Both ODE and DAE system can be provided. `DynamicOED.jl` augments the given system symbolically with its sensitivity equations and the dynamics of the FIM. The resulting system together with a sufficient information criterion defines an `OEDProblem`. Here, all sampling and control decisions are discretized in time and can be used to model additional constraints. At last, the `OEDProblem` can be transformed into an `OptimizationProblem` as a sufficient input to `Optimization.jl` [@vaibhav_kumar_dixit_2023_7738525]. Here, a variety of optimization solvers for nonlinear programming and mixed-integer nonlinear programming available as additional backends, e.g. `Juniper` [@juniper] or `Ipopt` [@Waechter2006]. A simple example demonstrates the usage of `DynamicOED.jl` for the Lotka-Volterra system [@Sager2013]. 
-
+The functionality in this package integrates into Julia's [`SciML`](https://sciml.ai/) ecosystem. The model is provided in symbolic form as an `ODESystem` using `ModelingToolkit.jl`[@ma2021modelingtoolkit] with additional frequency information for the observed and control variables. Both ODE or DAE systems can be provided. `DynamicOED.jl` augments the given system symbolically with its sensitivity equations and the dynamics of the FIM. The resulting system together with a sufficient information criterion defines an `OEDProblem`. Here, all sampling and control decisions are discretized in time and can be used to model additional constraints. At last, the `OEDProblem` can be transformed into an `OptimizationProblem` as a sufficient input to `Optimization.jl` [@vaibhav_kumar_dixit_2023_7738525]. Here, a variety of optimization solvers for nonlinear programming and mixed-integer nonlinear programming available as additional backends, e.g. `Juniper` [@juniper] or `Ipopt` [@Waechter2006]. A simple example demonstrates the usage of `DynamicOED.jl` for the Lotka-Volterra system [@Sager2013]. 
 
 \autoref{fig:lotka} shows the solution of the example above including the differential states, sensitivities $G$ and the sampling decisions $w$. More examples can be found in the [documentation](https://mathopt.github.io/DynamicOED.jl/dev/). 
 
@@ -102,9 +100,11 @@ oed_problem = OEDProblem(structural_simplify(oed_system), DCriterion())
 
 optimization_variables = states(oed_problem)
 
+w1, w2 = keys(optimization_variables.measurements)
+
 constraint_equations = [
-    sum(optimization_variables.measurements[1]) ≲ 32,
-    sum(optimization_variables.measurements[2]) ≲ 32,
+    sum(optimization_variables.measurements[w1]) ≲ 32,
+    sum(optimization_variables.measurements[w2]) ≲ 32,
 ]
 
 @named constraint_system = ConstraintsSystem(
