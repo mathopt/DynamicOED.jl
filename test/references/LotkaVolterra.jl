@@ -8,29 +8,31 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
 @testset "Relaxed" begin
     @variables t [description = "Time"]
     @variables x(t)=0.5 [description = "Biomass Prey"] y(t)=0.7 [
-        description = "Biomass Predator",
+        description = "Biomass Predator"
     ]
     @parameters p[1:4]=[1.0; 1.0; 0.4; 0.6] [
         description = "Fixed parameters",
-        tunable = false,
+        tunable = false
     ]
     @parameters c[1:2]=[1.0; 1.0] [description = "Uncertain parameters", tunable = true]
     @parameters u=0.0 [
         description = "Binary control variable, measured 10 times over the provided time span, relaxed",
         measurement_rate = 0.3,
         input = true,
-        bounds = (0.0, 1.0),
+        bounds = (0.0, 1.0)
     ]
     @variables obs(t)[1:2] [
         description = "Observed variable measured 10 times over the provided time span",
-        measurement_rate = 0.1,
+        measurement_rate = 0.1
     ]
     obs = collect(obs)
     D = Differential(t)
 
     # Define the ODE System
-    @named lotka_volterra = ODESystem([D(x) ~ p[1] * x - c[1] * x * y - p[3] * x * u;
-            D(y) ~ -p[2] * y + c[2] * x * y - p[4] * y * u], tspan = (0.0, 3.0),
+    @named lotka_volterra = ODESystem(
+        [D(x) ~ p[1] * x - c[1] * x * y - p[3] * x * u;
+         D(y) ~ -p[2] * y + c[2] * x * y - p[4] * y * u],
+        tspan = (0.0, 3.0),
         observed = obs .~ [x; y])
 
     @named oed_lotka = OEDSystem(lotka_volterra)
@@ -51,7 +53,7 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
     constraints = [
         0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₁),
         0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₂),
-        1.0 ≳ sum(Δts.u .* optimization_variables.controls.u),
+        1.0 ≳ sum(Δts.u .* optimization_variables.controls.u)
     ]
 
     # Define an MTK Constraint system
@@ -77,7 +79,7 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
             -8.770673425035107e-9,
             -8.822579849602493e-9,
             -8.756712678420366e-9,
-            -7.15514843922874e-9,
+            -7.15514843922874e-9
         ], atol = 1e-2, rtol = 1e-5)
 
     @test isapprox(u_opt.measurements.w₁,
@@ -111,7 +113,7 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
             0.9999999700398273,
             0.9999999928632054,
             0.9999999994598789,
-            1.000000002696486,
+            1.000000002696486
         ], atol = 1e-2, rtol = 1e-5)
 
     @test isapprox(u_opt.measurements.w₂,
@@ -145,7 +147,7 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
             0.9999999865101933,
             0.9999999999387468,
             1.0000000041944848,
-            1.0000000061707939,
+            1.0000000061707939
         ], atol = 1e-2, rtol = 1e-5)
 
     @info res.objective
@@ -155,29 +157,31 @@ end
 @testset "Integer" begin
     @variables t [description = "Time"]
     @variables x(t)=0.5 [description = "Biomass Prey"] y(t)=0.7 [
-        description = "Biomass Predator",
+        description = "Biomass Predator"
     ]
     @parameters p[1:4]=[1.0; 1.0; 0.4; 0.6] [
         description = "Fixed parameters",
-        tunable = false,
+        tunable = false
     ]
     @parameters c[1:2]=[1.0; 1.0] [description = "Uncertain parameters", tunable = true]
     @parameters u::Int=0 [
         description = "Binary control variable, measured 10 times over the provided time span, discrete",
         measurement_rate = 0.3,
         input = true,
-        bounds = (0.0, 1.0),
+        bounds = (0.0, 1.0)
     ]
     @variables obs(t)[1:2] [
         description = "Observed variable measured 10 times over the provided time span",
-        measurement_rate = 0.1,
+        measurement_rate = 0.1
     ]
     obs = collect(obs)
     D = Differential(t)
 
     # Define the ODE System
-    @named lotka_volterra = ODESystem([D(x) ~ p[1] * x - c[1] * x * y - p[3] * x * u;
-            D(y) ~ -p[2] * y + c[2] * x * y - p[4] * y * u], tspan = (0.0, 3.0),
+    @named lotka_volterra = ODESystem(
+        [D(x) ~ p[1] * x - c[1] * x * y - p[3] * x * u;
+         D(y) ~ -p[2] * y + c[2] * x * y - p[4] * y * u],
+        tspan = (0.0, 3.0),
         observed = obs .~ [x; y])
 
     @named oed_lotka = OEDSystem(lotka_volterra)
@@ -201,7 +205,7 @@ end
         0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₁),
         0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₂),
         2.0 ≳ sum(optimization_variables.controls.u),
-        sum(optimization_variables.controls.u) ≳ 1.0,
+        sum(optimization_variables.controls.u) ≳ 1.0
     ]
 
     # Define an MTK Constraint system
@@ -226,7 +230,7 @@ end
             -8.072531050877907e-9,
             -8.10418072743497e-9,
             -7.828539249999535e-9,
-            2.2919106922838742e-8,
+            2.2919106922838742e-8
         ], atol = 1e-2, rtol = 1e-5)
     @test isapprox(u_opt.measurements.w₁,
         [
@@ -259,7 +263,7 @@ end
             0.9999999785713451,
             0.9999999930680564,
             1.0000000001481675,
-            1.0000000033846281,
+            1.0000000033846281
         ], atol = 1e-2, rtol = 1e-5)
 
     @test isapprox(u_opt.measurements.w₂,
@@ -293,7 +297,7 @@ end
             0.999999969264283,
             1.000000000489115,
             1.000000004387359,
-            1.0000000064340413,
+            1.0000000064340413
         ], atol = 1e-2, rtol = 1e-5)
     @test isapprox(res.objective, 0.34, atol = 1e-2)
 end
@@ -303,20 +307,22 @@ end
     @variables x(t)=0.49 [
         description = "Biomass Prey",
         tunable = true,
-        bounds = (0.1, 1.0),
+        bounds = (0.1, 1.0)
     ] y(t)=0.7 [description = "Biomass Predator", tunable = false]
     @parameters p[1:3]=[1.0; 1.0; 1.0] [description = "Fixed parameters", tunable = false]
     @parameters c[1:1]=[1.0;] [description = "Uncertain parameters", tunable = true]
     @variables obs(t)[1:1] [
         description = "Observed variable measured 10 times over the provided time span",
-        measurement_rate = 10,
+        measurement_rate = 10
     ]
     obs = collect(obs)
     D = Differential(t)
 
     # Define the ODE System
-    @named lotka_volterra = ODESystem([D(x) ~ p[1] * x - c[1] * x * y;
-            D(y) ~ -p[2] * y + p[3] * x * y], tspan = (0.0, 5.0),
+    @named lotka_volterra = ODESystem(
+        [D(x) ~ p[1] * x - c[1] * x * y;
+         D(y) ~ -p[2] * y + p[3] * x * y],
+        tspan = (0.0, 5.0),
         observed = obs .~ [y + x])
 
     @named oed_lotka = OEDSystem(lotka_volterra)
@@ -334,7 +340,7 @@ end
     end
 
     constraints = [
-        0 ≲ 1 .- sum(Δts.w₁ .* optimization_variables.measurements.w₁),
+        0 ≲ 1 .- sum(Δts.w₁ .* optimization_variables.measurements.w₁)
     ]
 
     # Define an MTK Constraint system
@@ -360,7 +366,7 @@ end
             4.771191106750985e-6,
             7.588080619413368e-5,
             0.9999093339443416,
-            0.9999941524754293,
+            0.9999941524754293
         ],
         atol = 1e-2,
         rtol = 1e-5)

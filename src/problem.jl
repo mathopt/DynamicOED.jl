@@ -61,7 +61,8 @@ function ModelingToolkit.states(prob::OEDProblem)
 
     (;
         initial_conditions, controls = control_variables,
-        measurements = measurement_variables, regularization = regularization) |> sortkeys |> ComponentVector
+        measurements = measurement_variables, regularization = regularization) |>
+    sortkeys |> ComponentVector
 end
 
 function get_timegrids(prob::OEDProblem)
@@ -152,7 +153,7 @@ function Optimization.OptimizationProblem(prob::OEDProblem,
     # Declare the Optimization function
     opt_f = OptimizationFunction(objective, AD;
         syms = syms,
-        cons = cons,)
+        cons = cons)
 
     # Return the optimization problem
     OptimizationProblem(opt_f, u0, p, lb = lb, ub = ub, int = integrality,

@@ -12,10 +12,10 @@ makedocs(modules = [DynamicOED],
         "Home" => "index.md",
         "Examples" => [
             "Linear System" => "examples/1D.md",
-            "Lotka-Volterra" => "examples/lotka.md",
+            "Lotka-Volterra" => "examples/lotka.md"
         ],
         "Theory" => "theory.md",
-        "API" => "api.md",
+        "API" => "api.md"
     ])
 
 deploydocs(repo = "github.com/mathopt/DynamicOED.jl";

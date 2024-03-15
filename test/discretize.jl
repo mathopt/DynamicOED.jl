@@ -7,7 +7,7 @@ using Test
 @variables x(t)=2.0 [
     description = "State with uncertain initial condition",
     tunable = false,
-    bounds = (0.1, 5.0),
+    bounds = (0.1, 5.0)
 ] # The first state is uncertain
 @parameters p[1:1]=-2.0 [description = "Fixed parameter", tunable = true]
 @variables y₁(t) [description = "Observed", measurement_rate = 1.0]
@@ -68,7 +68,7 @@ end
         (0.9, 1.2),
         (1.2, 1.5),
         (1.5, 1.8),
-        (1.8, 2.0),
+        (1.8, 2.0)
     ]
     @test timegrid.timespans != timegrid.timegrids[1] != timegrid.timegrids[2]
     @test size(timegrid.timespans) == (8,) # We have
@@ -80,7 +80,7 @@ end
         (1.0, 1.2),
         (1.2, 1.5),
         (1.5, 1.8),
-        (1.8, 2.0),
+        (1.8, 2.0)
     ]
     # Right assignments
     @test DynamicOED.get_variable_idx(timegrid, Symbol("w₁"), 4) == 1
@@ -119,7 +119,7 @@ end
         (1.6, 1.7),
         (1.7, 1.8),
         (1.8, 1.9),
-        (1.9, 2.0),
+        (1.9, 2.0)
     ]
     # Right assignments
     @test DynamicOED.get_variable_idx(timegrid, Symbol("w₁"), 4) == 1

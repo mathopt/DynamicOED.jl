@@ -191,12 +191,12 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     # TODO Maybe switch to variables here.
     @variables F(t)[1:np, 1:np]=zeros(T, (np, np)) [
         description = "Fisher Information Matrix",
-        fisher_state = true,
+        fisher_state = true
     ]
     @variables G(t)[1:nx, 1:np]=G_init [description = "Sensitivity State"]
     @variables Q(t)[1:n_obs, 1:np] [
         description = "Unweighted Fisher Information Derivative",
-        unweighted_information_gain = true,
+        unweighted_information_gain = true
     ]
 
     w = Vector{Num}(undef, n_obs)
@@ -233,9 +233,9 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     # We do not need to do anything more than push this into the equations
     # Simplify will figure out the rest
     ODESystem([vec(dynamic_eqs);
-            vec(sens_eqs);
-            vec(new_obs);
-            vec(Q .~ hx * G)],
+               vec(sens_eqs);
+               vec(new_obs);
+               vec(Q .~ hx * G)],
         t,
         vcat(x, vec(G), vec(F[idx]), vec(Q)),
         vcat(union(p, p_tuneable), w),
