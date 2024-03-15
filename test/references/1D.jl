@@ -7,7 +7,7 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
 
 const TEST_CRITERIA = [
     FisherACriterion(), FisherDCriterion(), FisherECriterion(),
-    ACriterion(), DCriterion(), ECriterion(),
+    ACriterion(), DCriterion(), ECriterion()
 ]
 
 ## Define the system
@@ -19,7 +19,7 @@ D = Differential(t)
 
 # Define the eqs
 @named simple_system = ODESystem([
-        D(x) ~ p[1] * x,
+        D(x) ~ p[1] * x
     ], tspan = (0.0, 1.0),
     observed = obs .~ [x])
 
@@ -40,7 +40,7 @@ oed = structural_simplify(oed)
         end
 
         constraints = [
-            0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₁),
+            0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₁)
         ]
 
         # Define an MTK Constraint system
@@ -81,7 +81,7 @@ end
         end
 
         constraints = [
-            0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₁),
+            0 ≲ 0.2 .- 0.5 * sum(Δts.w₁ .* optimization_variables.measurements.w₁)
         ]
 
         # Define an MTK Constraint system

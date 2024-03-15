@@ -9,14 +9,14 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
     @variables t y₁(t)=1.0 y₂(t)=0.0 y₃(t)=0.0
     @variables obs(t) [
         description = "Observed variable measured 10 times over the provided time span",
-        measurement_rate = 10,
+        measurement_rate = 10
     ]
     @parameters k₁=0.04 [tunable = true]
     @parameters k₂=3e7 k₃=1e4
     D = Differential(t)
     eqs = [D(y₁) ~ -k₁ * y₁ + k₃ * y₂ * y₃
-        D(y₂) ~ k₁ * y₁ - k₃ * y₂ * y₃ - k₂ * y₂^2
-        0 ~ y₁ + y₂ + y₃ - 1]
+           D(y₂) ~ k₁ * y₁ - k₃ * y₂ * y₃ - k₂ * y₂^2
+           0 ~ y₁ + y₂ + y₃ - 1]
 
     @named roberdae = ODESystem(eqs, tspan = (0, 100.0), observed = obs .~ [y₁])
     @named roberoed = OEDSystem(roberdae)
@@ -58,7 +58,7 @@ using Optimization, OptimizationMOI, Ipopt, Juniper
             0.0004865755450836175,
             0.9994267375362046,
             0.9997958106584781,
-            0.9998709072042323,
+            0.9998709072042323
         ],
         atol = 1e-2,
         rtol = 1e-5)

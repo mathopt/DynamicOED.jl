@@ -6,7 +6,7 @@ using DynamicOED
 @variables x(t)=2.0 [
     description = "State with uncertain initial condition",
     tunable = false,
-    bounds = (0.1, 5.0),
+    bounds = (0.1, 5.0)
 ] # The first state is uncertain
 @parameters p[1:1]=-2.0 [description = "Fixed parameter", tunable = true]
 @variables y₁(t) [description = "Observed", measurement_rate = 1.0]

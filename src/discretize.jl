@@ -53,11 +53,12 @@ function Timegrid(tspan::Tuple, x::Num...; time_tolerance::Real = 1e-6)
 
     completegrid = [tspan_
                     for tspan_ in zip(_completegrid[1:(end - 1)], _completegrid[2:end])
-                        if abs(-(tspan_...)) >= time_tolerance]
+                    if abs(-(tspan_...)) >= time_tolerance]
 
     timegrids = map(_timegrids) do grid
-        [tspan_ for tspan_ in zip(grid[1:(end - 1)], grid[2:end])
-             if abs(-(tspan_...)) >= time_tolerance]
+        [tspan_
+         for tspan_ in zip(grid[1:(end - 1)], grid[2:end])
+         if abs(-(tspan_...)) >= time_tolerance]
     end
 
     indicators = zeros(Int, length(x), size(completegrid, 1))
@@ -296,7 +297,8 @@ function _sequential_solve(remaker::OEDRemake,
         u0::AbstractVector{T},
         p0::AbstractVector{T},
         idxs::TP;
-        kwargs...)::Tuple{AbstractArray{T, 2}, AbstractVector{T}} where {P, A, T, TP <: Tuple}
+        kwargs...)::Tuple{
+        AbstractArray{T, 2}, AbstractVector{T}} where {P, A, T, TP <: Tuple}
     __sequential_solve(remaker, prob, alg, parameters, u0, p0, idxs...)
 end
 
