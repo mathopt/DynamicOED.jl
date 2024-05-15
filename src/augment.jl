@@ -2,7 +2,7 @@
 """
 $(TYPEDEF)
 
-Indicator that a given variable is a measurement function. 
+Indicator that a given variable is a measurement function.
 
 ```
 @variables w=1.0 [measurement_function=true]
@@ -19,7 +19,7 @@ set_measurement_function(x) = Symbolics.setmetadata(x, MeasurementFunction, true
 """
 $(TYPEDEF)
 
-Indicator that a given variable is a state of the fisher information matrix. 
+Indicator that a given variable is a state of the fisher information matrix.
 
 ```
 @variables F[1:3, 1:3] [fisher_state=true]
@@ -66,8 +66,8 @@ $(TYPEDEF)
 
 Indicator that a given state is subject to a fixed rate.
 Is used for modeling the rate of observation of observed variables and the rate of control for control variables.
-If the provided rate is a `Real`, it is assumed that the resulting time grid is given in fractions of the time unit. 
-If the provided rate is a `Int`, it is assumed that the resulting time grid is divided in `rate` equidistant intervals. 
+If the provided rate is a `Real`, it is assumed that the resulting time grid is given in fractions of the time unit.
+If the provided rate is a `Int`, it is assumed that the resulting time grid is divided in `rate` equidistant intervals.
 
 ```
 @variables y(t) [measurement_rate=0.1] # Create a variable measured every 0.1 t
@@ -112,37 +112,36 @@ end
 
 function construct_jacobians(::MTKBackend,
         sys::ModelingToolkit.AbstractODESystem,
-        p = parameters(sys))
-    eqs = map(x -> x.rhs - x.lhs, equations(sys))
+        p = parameters(sys), stateset = states(sys), equationset = equations(sys))
+    eqs = map(x -> x.rhs - x.lhs, equationset)
     t = ModelingToolkit.get_iv(sys)
     D = Differential(t)
-    fx = ModelingToolkit.jacobian(eqs, states(sys))
-    dfddx = ModelingToolkit.jacobian(eqs, D.(states(sys)))
+    fx = ModelingToolkit.jacobian(eqs, stateset)
+    dfddx = ModelingToolkit.jacobian(eqs, D.(stateset))
     fp = ModelingToolkit.jacobian(eqs, p)
     obs = filter(x -> is_measured(x.lhs), observed(sys))
-    obs = isempty(obs) ? states(sys) : map(x -> x.rhs, obs)
-    hx = ModelingToolkit.jacobian(obs, states(sys))
+    obs = isempty(obs) ? sts : map(x -> x.rhs, obs)
+    hx = ModelingToolkit.jacobian(obs, stateset)
     return dfddx, fx, fp, hx
 end
 
 function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
-        backend::AbstractAugmentationBackened;
+        backend::AbstractAugmentationBackened; stateset = states(sys),
+        equationset = equations(sys),
         name::Symbol,
         kwargs...)
     T = Float64
     # The set of tuneable parameters
     p = parameters(sys)
-    # The set of controls 
+    # The set of controls
     c = filter(ModelingToolkit.isinput, p)
     # The set of tuneable parameters
     p_tuneable = setdiff(filter(ModelingToolkit.istunable, p), c)
-    # The states
-    x = states(sys)
     # The unknown initial conditions
-    x_ic = eltype(x)[]
+    x_ic = eltype(stateset)[]
     unknown_initial_conditions = Int[]
-    @inbounds for i in axes(x, 1)
-        xi = getindex(x, i)
+    @inbounds for i in axes(stateset, 1)
+        xi = getindex(stateset, i)
         if istunable(xi)
             xi_0 = Symbolics.variable(Symbol(xi, "₀"), T = Symbolics.symtype(xi))
             xi_0 = setmetadata(xi_0,
@@ -159,10 +158,10 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
         end
     end
 
-    # The independent variable 
+    # The independent variable
     t = ModelingToolkit.get_iv(sys)
     delta_t = Differential(t)
-    # The observed equations 
+    # The observed equations
     obs = filter(x -> is_measured(x.lhs), observed(sys))
     # Check if all observed equations and controls have measurement rates associated
     @assert !isempty(obs) "None of the observed equations have measurement rates associated to them! Please provide at least one observable measurement."
@@ -170,12 +169,12 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
 
     @assert !isempty(obs) "Please defined `observed` equations to use optimal experimental design."
 
-    np, nx, n_obs = length(p_tuneable), length(x), length(obs)
+    np, nx, n_obs = length(p_tuneable), length(stateset), length(obs)
     ## build the jacobians
-    dfx, fx, fp, hx = construct_jacobians(backend, sys, p_tuneable)
+    dfx, fx, fp, hx = construct_jacobians(backend, sys, p_tuneable, stateset, equationset)
 
     # Check the size of the equations
-    @assert size(fx, 1)==size(fp, 1)==size(x, 1) "The size of the state equations and the jacobian does not match"
+    @assert size(fx, 1)==size(fp, 1)==size(stateset, 1) "The size of the state equations and the jacobian does not match"
     @assert size(fp, 2)==size(p_tuneable, 1) "The size of the state equations and the jacobian does not match"
 
     G_init = zeros(T, (nx, np))
@@ -218,7 +217,7 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     G = collect(G)
     Q = collect(Q)
 
-    # Create new observed function 
+    # Create new observed function
     idx = triu(trues(np, np))
     new_obs = delta_t.(F[idx]) .~ (sum(enumerate(w)) do (i, wi)
         wi * ((hx[i:i, :] * G)' * (hx[i:i, :] * G))[idx]
@@ -228,7 +227,6 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     # We always assume DAE form here. Results in a stable system
     # 60 % of the time it works everytime! This is an easteregg, do not take it seriously!
     sens_eqs = vec(zeros(T, nx, np) .~ dfx * delta_t.(G) .+ fx * G .+ fp)
-
     # We do not need to do anything more than push this into the equations
     # Simplify will figure out the rest
     ODESystem([vec(dynamic_eqs);
@@ -236,12 +234,13 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
             vec(new_obs);
             vec(Q .~ hx * G)],
         t,
-        vcat(x, vec(G), vec(F[idx]), vec(Q)),
+        vcat(states(sys), vec(G), vec(F[idx]), vec(Q)),
         vcat(union(p, p_tuneable), w),
         tspan = ModelingToolkit.get_tspan(sys),
         observed = observed(sys), name = name)
 end
 
-function OEDSystem(sys::ModelingToolkit.AbstractODESystem; kwargs...)
-    build_augmented_system(sys, MTKBackend(); kwargs...)
+function OEDSystem(sys::ModelingToolkit.AbstractODESystem; stateset = states(sys),
+        equationset = equations(sys), kwargs...)
+    build_augmented_system(sys, MTKBackend(); stateset=stateset, equationset = equationset, kwargs...)
 end

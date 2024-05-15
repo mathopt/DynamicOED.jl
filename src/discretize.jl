@@ -6,7 +6,7 @@ end
 
 function _generate_timegrid(Δt::T, tspan::Tuple{Real, Real}) where {T <: Real}
     @assert Δt>0 "Stepsize must be greater than 0."
-    @assert Δt<-(reverse(tspan)...) "Stepsize must be smaller than total time interval."
+    @assert Δt<=-(reverse(tspan)...) "Stepsize must be smaller than total time interval."
     t0, tinf = tspan
     timepoints = collect(T, t0:Δt:tinf)
     if timepoints[end] != tinf
@@ -23,7 +23,7 @@ end
 """
 $(TYPEDEF)
 
-A structure for holding a multi-variable time grid. 
+A structure for holding a multi-variable time grid.
 
 # Fields
 
@@ -86,7 +86,7 @@ end
 
 function get_variable_idx(grid::Timegrid, var::Symbol, i::Int)
     id = _get_variable_idx(grid, var)
-    isnothing(id) && return 1 # We always assume here that this will work 
+    isnothing(id) && return 1 # We always assume here that this will work
     return grid.indicators[id, i]
 end
 
@@ -251,7 +251,7 @@ function (remaker::OEDRemake)(i::Int,
     ics = getproperty(parameters, :initial_conditions) |> NamedTuple
     controls = getproperty(parameters, :controls) |> NamedTuple
     measurements = getproperty(parameters, :measurements) |> NamedTuple
-    # Get the right controls 
+    # Get the right controls
     controls = get_vars_from_grid(remaker.grid, i, controls)
     measurements = get_vars_from_grid(remaker.grid, i, measurements)
     p0_ = remaker.parameter_remake(p0, measurements, controls, ics)

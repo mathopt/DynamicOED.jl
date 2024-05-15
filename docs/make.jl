@@ -13,6 +13,7 @@ makedocs(modules = [DynamicOED],
         "Examples" => [
             "Linear System" => "examples/1D.md",
             "Lotka-Volterra" => "examples/lotka.md",
+            "Urethan" => "examples/urethan.md"
         ],
         "Theory" => "theory.md",
         "API" => "api.md",
