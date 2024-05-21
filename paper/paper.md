@@ -108,7 +108,7 @@ constraint_equations = [
 ]
 
 @named constraint_system = ConstraintsSystem(
-    constraint_equations, optimization_variables, []
+    constraint_equations, optimization_variables, Num[]
 )
 
 optimization_problem = OptimizationProblem(
@@ -124,7 +124,7 @@ optimal_design = solve(optimization_problem, Ipopt.Optimizer();
 
 Several extensions are planned for the future. First, a multiple shooting approach is planned. Also, other steps to increase the efficiency of our implementation may be considered. For example, in the case of fixed initial values and controls, the integration of $x$ and $G$ need to be done only once and can be decoupled from the numerical integration of $F$ and the subsequent optimization over $w$. 
 
-![Differential states, sensitivities of the states with respect to the parameters and the optimal sampling design for Lotka-Volterra system. \label{fig:lotka}](figures/lotka.pdf)
+![Differential states, sensitivities of the states with respect to the parameters and the optimal sampling design for Lotka-Volterra system. \label{fig:lotka}](figures/lotka.png)
 
 
 # Acknowledgements

@@ -65,7 +65,7 @@ constraint_equations = [
 ]
 
 @named constraint_system = ConstraintsSystem(
-    constraint_equations, collect(optimization_variables), []
+    constraint_equations, collect(optimization_variables), Num[]
 )
 nothing # hide
 ```

@@ -64,7 +64,7 @@ constraint_equations = [
       sum(optimization_variables.measurements.w₁) ≲ 3,
 ]
 
-@named constraint_set = ConstraintsSystem(constraint_equations, optimization_variables,[])
+@named constraint_set = ConstraintsSystem(constraint_equations, optimization_variables, Num[])
 
 # Initialize the optimization problem
 optimization_problem = OptimizationProblem(oed_problem, AutoForwardDiff(),
