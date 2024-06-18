@@ -4,6 +4,8 @@
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl) [![SciML Code Style](https://img.shields.io/static/v1?label=code%20style&message=SciML&color=9558b2&labelColor=389826)](https://github.com/SciML/SciMLStyle) ![Lifecycle:Experimental](https://img.shields.io/badge/Lifecycle-Experimental-339999) 
 [![Build Status](https://github.com/mathopt/DynamicOED.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/mathopt/DynamicOED.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![ColPrac: Contributor's Guide on Collaborative Practices for Community Packages](https://img.shields.io/badge/ColPrac-Contributor's%20Guide-blueviolet)](https://github.com/SciML/ColPrac)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.12084056.svg)](https://doi.org/10.5281/zenodo.12084056)
+
 
 Repository for optimal experimental design for differential equations using optimal control.
 
