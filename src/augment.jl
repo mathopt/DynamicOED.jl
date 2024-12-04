@@ -119,7 +119,7 @@ function construct_jacobians(::MTKBackend,
     fx = ModelingToolkit.jacobian(eqs, states(sys))
     dfddx = ModelingToolkit.jacobian(eqs, D.(states(sys)))
     fp = ModelingToolkit.jacobian(eqs, p)
-    obs = observed(sys)
+    obs = filter(x->is_measured(x.lhs),  observed(sys))
     obs = isempty(obs) ? states(sys) : map(x -> x.rhs, obs)
     hx = ModelingToolkit.jacobian(obs, states(sys))
     return dfddx, fx, fp, hx
@@ -163,10 +163,11 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     t = ModelingToolkit.get_iv(sys)
     delta_t = Differential(t)
     # The observed equations 
-    obs = observed(sys)
-
+    #obs = observed(sys)
+    obs = filter(x-> is_measured(x.lhs), observed(sys))
+    @info obs
     # Check if all observed equations and controls have measurement rates associated
-    @assert all(x -> is_measured(x.lhs), obs) "Not all observed equations have measurement rates associated to them!"
+    @assert !isempty(obs) "No equations with measurement rates are found!"
     @assert all(is_measured, c) "Not all controls have rates associated to them! If you mean to apply continuous controls, please adjust your model before passing it."
 
     @assert !isempty(obs) "Please defined `observed` equations to use optimal experimental design."
@@ -198,6 +199,7 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
         description = "Unweighted Fisher Information Derivative",
         unweighted_information_gain = true
     ]
+    @info size(Q)
 
     w = Vector{Num}(undef, n_obs)
     @inbounds for i in axes(w, 1)
@@ -226,21 +228,23 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     end)
 
     dynamic_eqs = equations(sys)
+    _notobs = filter(x->!is_measured(x.lhs), observed(sys))
+    append!(dynamic_eqs, _notobs)
     # We always assume DAE form here. Results in a stable system
     # 60 % of the time it works everytime! This is an easteregg, do not take it seriously!
     sens_eqs = vec(zeros(T, nx, np) .~ dfx * delta_t.(G) .+ fx * G .+ fp)
-
     # We do not need to do anything more than push this into the equations
-    # Simplify will figure out the rest
-    ODESystem([vec(dynamic_eqs);
-               vec(sens_eqs);
-               vec(new_obs);
-               vec(Q .~ hx * G)],
+
+
+    ODESystem(vcat(vec(dynamic_eqs),
+               vec(sens_eqs),
+               vec(new_obs),
+               vec(Q .~ hx * G)),
         t,
         vcat(x, vec(G), vec(F[idx]), vec(Q)),
         vcat(union(p, p_tuneable), w),
         tspan = ModelingToolkit.get_tspan(sys),
-        observed = observed(sys), name = name)
+        observed = obs, name = name)
 end
 
 function OEDSystem(sys::ModelingToolkit.AbstractODESystem; kwargs...)

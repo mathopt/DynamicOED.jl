@@ -79,7 +79,7 @@ end
 
 function build_predictor(prob::OEDProblem)
     tspan = (first(first(prob.timegrid.timespans)), last(last(prob.timegrid.timespans)))
-    odae_prob = ODAEProblem(prob.system, Pair[], tspan)
+    odae_prob = ODEProblem(prob.system)
     remaker = OEDRemake(prob.system, tspan, prob.timegrid)
 
     predictor = let remaker = remaker, odae_prob = odae_prob, alg = prob.alg,
