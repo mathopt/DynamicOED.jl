@@ -2,7 +2,7 @@
 """
 $(TYPEDEF)
 
-Indicator that a given variable is a measurement function. 
+Indicator that a given variable is a measurement function.
 
 ```
 @variables w=1.0 [measurement_function=true]
@@ -19,7 +19,7 @@ set_measurement_function(x) = Symbolics.setmetadata(x, MeasurementFunction, true
 """
 $(TYPEDEF)
 
-Indicator that a given variable is a state of the fisher information matrix. 
+Indicator that a given variable is a state of the fisher information matrix.
 
 ```
 @variables F[1:3, 1:3] [fisher_state=true]
@@ -66,8 +66,8 @@ $(TYPEDEF)
 
 Indicator that a given state is subject to a fixed rate.
 Is used for modeling the rate of observation of observed variables and the rate of control for control variables.
-If the provided rate is a `Real`, it is assumed that the resulting time grid is given in fractions of the time unit. 
-If the provided rate is a `Int`, it is assumed that the resulting time grid is divided in `rate` equidistant intervals. 
+If the provided rate is a `Real`, it is assumed that the resulting time grid is given in fractions of the time unit.
+If the provided rate is a `Int`, it is assumed that the resulting time grid is divided in `rate` equidistant intervals.
 
 ```
 @variables y(t) [measurement_rate=0.1] # Create a variable measured every 0.1 t
@@ -109,19 +109,20 @@ function get_fisher_states(sys::ModelingToolkit.AbstractSystem)
     filter(is_fisher_state, states(sys)) |> Base.Fix1(collect, Num)
 end
 ##
-
 function construct_jacobians(::MTKBackend,
         sys::ModelingToolkit.AbstractODESystem,
+        eqs = equations(sys),
+        x = states(sys),
         p = parameters(sys))
-    eqs = map(x -> x.rhs - x.lhs, equations(sys))
+    eqs = map(x -> x.rhs - x.lhs, eqs)
     t = ModelingToolkit.get_iv(sys)
     D = Differential(t)
-    fx = ModelingToolkit.jacobian(eqs, states(sys))
-    dfddx = ModelingToolkit.jacobian(eqs, D.(states(sys)))
+    fx = ModelingToolkit.jacobian(eqs,x)
+    dfddx = ModelingToolkit.jacobian(eqs, D.(x))
     fp = ModelingToolkit.jacobian(eqs, p)
     obs = filter(x->is_measured(x.lhs),  observed(sys))
-    obs = isempty(obs) ? states(sys) : map(x -> x.rhs, obs)
-    hx = ModelingToolkit.jacobian(obs, states(sys))
+    obs = isempty(obs) ? x : map(x -> x.rhs, obs)
+    hx = ModelingToolkit.jacobian(obs,x)
     return dfddx, fx, fp, hx
 end
 
@@ -132,7 +133,7 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     T = Float64
     # The set of tuneable parameters
     p = parameters(sys)
-    # The set of controls 
+    # The set of controls
     c = filter(ModelingToolkit.isinput, p)
     # The set of tuneable parameters
     p_tuneable = setdiff(filter(ModelingToolkit.istunable, p), c)
@@ -159,10 +160,10 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
         end
     end
 
-    # The independent variable 
+    # The independent variable
     t = ModelingToolkit.get_iv(sys)
     delta_t = Differential(t)
-    # The observed equations 
+    # The observed equations
     #obs = observed(sys)
     obs = filter(x-> is_measured(x.lhs), observed(sys))
     @info obs
@@ -172,10 +173,16 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
 
     @assert !isempty(obs) "Please defined `observed` equations to use optimal experimental design."
 
-    np, nx, n_obs = length(p_tuneable), length(x), length(obs)
     ## build the jacobians
-    dfx, fx, fp, hx = construct_jacobians(backend, sys, p_tuneable)
+    dynamic_eqs = equations(sys)
+    _notobs_eqs = filter(x->!is_measured(x.lhs), observed(sys))
+    _notobs_sts = [x.lhs for x in filter(x->!is_measured(x.lhs), observed(sys))]
+    append!(dynamic_eqs, _notobs_eqs)
+    append!(x, _notobs_sts)
+    np, nx, n_obs = length(p_tuneable), length(x), length(obs)
 
+    dfx, fx, fp, hx = construct_jacobians(backend, sys, dynamic_eqs, x, p_tuneable)
+    @info size(dfx) size(fx) size(fp) size(x)
     # Check the size of the equations
     @assert size(fx, 1)==size(fp, 1)==size(x, 1) "The size of the state equations and the jacobian does not match"
     @assert size(fp, 2)==size(p_tuneable, 1) "The size of the state equations and the jacobian does not match"
@@ -195,7 +202,7 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
         fisher_state = true
     ]
     @variables G(t)[1:nx, 1:np]=G_init [description = "Sensitivity State"]
-    @variables Q(t)[1:n_obs, 1:np] [
+    @variables Q(t)[1:n_obs, 1:np]=zeros(T, (n_obs, np)) [
         description = "Unweighted Fisher Information Derivative",
         unweighted_information_gain = true
     ]
@@ -221,15 +228,14 @@ function build_augmented_system(sys::ModelingToolkit.AbstractODESystem,
     G = collect(G)
     Q = collect(Q)
 
-    # Create new observed function 
+    # Create new observed function
     idx = triu(trues(np, np))
     new_obs = delta_t.(F[idx]) .~ (sum(enumerate(w)) do (i, wi)
         wi * ((hx[i:i, :] * G)' * (hx[i:i, :] * G))[idx]
     end)
 
-    dynamic_eqs = equations(sys)
-    _notobs = filter(x->!is_measured(x.lhs), observed(sys))
-    append!(dynamic_eqs, _notobs)
+    @info n_obs np nx
+    @info size
     # We always assume DAE form here. Results in a stable system
     # 60 % of the time it works everytime! This is an easteregg, do not take it seriously!
     sens_eqs = vec(zeros(T, nx, np) .~ dfx * delta_t.(G) .+ fx * G .+ fp)

@@ -2,7 +2,16 @@ function continuous_predict(oed::OEDProblem, result::ComponentVector)
     # Build the remaker and the problem
     timegrid = oed.timegrid
     tspan = (first(first(timegrid.timespans)), last(last(timegrid.timespans)))
-    odae_prob = ODAEProblem(oed.system, Pair[], tspan)
+    odae_prob = begin
+        try
+            OODAEProblem(oed.system, Pair[], tspan)
+        catch
+            sts = states(oed.system)
+            DAEProblem(oed.system, zeros(length(sts)), ModelingToolkit.getdefault.(sts), tspan)
+        else
+            error("Could not convert to either DAE nor ODEProblem.")
+        end
+    end
     remaker = OEDRemake(oed.system, tspan, timegrid)
     # Right now map, switch to pmap if available
     u0 = copy(odae_prob.u0)
@@ -23,6 +32,7 @@ function extract_Qs(oed::OEDProblem,
     observed_eqs = observed(oed.system)
     m = size(filter(!is_measurement_function, filter(istunable, parameters(oed.system))), 1)
     qs = filter(is_information_gain, reduce(vcat, Symbolics.get_variables.(observed_eqs)))
+    qs = isempty(qs) ? filter(is_information_gain, reduce(vcat, Symbolics.get_variables.(equations(oed.system)))) : qs
     n = round(Int, size(qs, 1) / m)
     Qs = Matrix{T}[]
     @inbounds for i in eachindex(sols)
@@ -57,7 +67,7 @@ function compute_information_gain(oed::OEDProblem, result::ComponentVector{T}) w
     sols = continuous_predict(oed, result)
     Qs = extract_Qs(oed, result, sols)
     F = extract_fisher(oed, result, sols)
-    Finv = inv(F)
+    Finv = inv(F + result.regularization * I)
     Ps = compute_local_information_gain(Qs)
     Πs = map(Ps) do Pi
         map(eachindex(Pi)) do i
