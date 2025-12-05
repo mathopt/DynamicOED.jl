@@ -1,7 +1,7 @@
 name = "DynamicOED"
 uuid = "bec7fea8-67ad-492e-b01d-b4dfa914b0da"
-authors = ["Carl Julius Martensen <carl.martensen@ovgu.de>", "Christoph Plate <chplate@ovgu.de>"]
 version = "0.1.2"
+authors = ["Carl Julius Martensen <carl.martensen@ovgu.de>", "Christoph Plate <chplate@ovgu.de>"]
 
 [deps]
 CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
@@ -20,7 +20,7 @@ Aqua = "0.7"
 CommonSolve = "0.2"
 ComponentArrays = "0.15"
 DocStringExtensions = "0.9"
-ModelingToolkit = "~8.72.0"
+ModelingToolkit = "~8.72.0, 10"
 Optimization = "~3.19.0"
 OrdinaryDiffEq = "6"
 Reexport = "1.2"
